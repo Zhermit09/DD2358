@@ -73,4 +73,4 @@ def calculate_z_serial_purepython(maxiter, zs, cs):
 if __name__ == "__main__":
     # Calculate the Julia set using a pure Python solution with
     # reasonable defaults for a laptop
-    calc_pure_python(desired_width=1000, max_iterations=300)
+    calc_pure_python(desired_width=200, max_iterations=300)
