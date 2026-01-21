@@ -2,37 +2,37 @@ Filename: JuliaSet.py
 
 Line #    Mem usage    Increment  Occurrences   Line Contents
 =============================================================
-    20   48.805 MiB   48.805 MiB           1   @profile
+    20   49.062 MiB   49.062 MiB           1   @profile
     21                                         def calc_pure_python(desired_width, max_iterations):
     22                                             """Create a list of complex coordinates (zs) and complex parameters (cs),
     23                                             build Julia set"""
-    24   48.805 MiB    0.000 MiB           1       x_step = (x2 - x1) / desired_width
-    25   48.805 MiB    0.000 MiB           1       y_step = (y1 - y2) / desired_width
-    26   48.809 MiB    0.004 MiB           1       x = []
-    27   48.809 MiB    0.000 MiB           1       y = []
-    28   48.809 MiB    0.000 MiB           1       ycoord = y2
-    29   48.816 MiB    0.004 MiB         201       while ycoord > y1:
-    30   48.816 MiB    0.004 MiB         200           y.append(ycoord)
-    31   48.816 MiB    0.000 MiB         200           ycoord += y_step
-    32   48.816 MiB    0.000 MiB           1       xcoord = x1
-    33   48.828 MiB    0.008 MiB         201       while xcoord < x2:
-    34   48.828 MiB    0.004 MiB         200           x.append(xcoord)
-    35   48.828 MiB    0.000 MiB         200           xcoord += x_step
+    24   49.062 MiB    0.000 MiB           1       x_step = (x2 - x1) / desired_width
+    25   49.062 MiB    0.000 MiB           1       y_step = (y1 - y2) / desired_width
+    26   49.066 MiB    0.004 MiB           1       x = []
+    27   49.066 MiB    0.000 MiB           1       y = []
+    28   49.066 MiB    0.000 MiB           1       ycoord = y2
+    29   49.074 MiB    0.004 MiB         201       while ycoord > y1:
+    30   49.074 MiB    0.004 MiB         200           y.append(ycoord)
+    31   49.074 MiB    0.000 MiB         200           ycoord += y_step
+    32   49.074 MiB    0.000 MiB           1       xcoord = x1
+    33   49.086 MiB    0.008 MiB         201       while xcoord < x2:
+    34   49.086 MiB    0.004 MiB         200           x.append(xcoord)
+    35   49.086 MiB    0.000 MiB         200           xcoord += x_step
     36                                             # build a list of coordinates and the initial condition for each cell.
     37                                             # Note that our initial condition is a constant and could easily be removed,
     38                                             # we use it to simulate a real-world scenario with several inputs to our
     39                                             # function
-    40   48.828 MiB    0.000 MiB           1       zs = []
-    41   48.828 MiB    0.000 MiB           1       cs = []
-    42   52.391 MiB    0.000 MiB         201       for ycoord in y:
-    43   52.391 MiB    2.434 MiB       40200           for xcoord in x:
-    44   52.391 MiB    0.422 MiB       40000               zs.append(complex(xcoord, ycoord))
-    45   52.391 MiB    0.707 MiB       40000               cs.append(complex(c_real, c_imag))
+    40   49.086 MiB    0.000 MiB           1       zs = []
+    41   49.086 MiB    0.000 MiB           1       cs = []
+    42   52.203 MiB    0.000 MiB         201       for ycoord in y:
+    43   52.203 MiB    0.016 MiB       40200           for xcoord in x:
+    44   52.203 MiB    0.145 MiB       40000               zs.append(complex(xcoord, ycoord))
+    45   52.203 MiB    2.957 MiB       40000               cs.append(complex(c_real, c_imag))
     46                                         
     47                                             #print("Length of x:", len(x))
     48                                             #print("Total elements:", len(zs))
     49                                             #start_time = time.time()
-    50   52.523 MiB   52.523 MiB           1       output = calculate_z_serial_purepython(max_iterations, zs, cs)
+    50   52.633 MiB   52.633 MiB           1       output = calculate_z_serial_purepython(max_iterations, zs, cs)
     51                                             #end_time = time.time()
     52                                             #secs = end_time - start_time
     53                                             #print(calculate_z_serial_purepython.__name__ + " took", secs, "seconds")
@@ -46,18 +46,18 @@ Filename: JuliaSet.py
 
 Line #    Mem usage    Increment  Occurrences   Line Contents
 =============================================================
-    59   52.395 MiB   52.395 MiB           1   @profile
+    59   52.207 MiB   52.207 MiB           1   @profile
     60                                         def calculate_z_serial_purepython(maxiter, zs, cs):
     61                                             """Calculate output list using Julia update rule"""
-    62   52.395 MiB    0.000 MiB           1       output = [0] * len(zs)
-    63   52.520 MiB    0.000 MiB       40001       for i in range(len(zs)):
-    64   52.520 MiB    0.000 MiB       40000           n = 0
-    65   52.520 MiB    0.000 MiB       40000           z = zs[i]
-    66   52.520 MiB    0.000 MiB       40000           c = cs[i]
-    67   52.520 MiB    0.121 MiB     1369666           while abs(z) < 2 and n < maxiter:
-    68   52.520 MiB    0.000 MiB     1329666               z = z * z + c
-    69   52.520 MiB    0.000 MiB     1329666               n += 1
-    70   52.520 MiB    0.004 MiB       40000           output[i] = n
-    71   52.520 MiB    0.000 MiB           1       return output
+    62   52.512 MiB    0.305 MiB           1       output = [0] * len(zs)
+    63   52.633 MiB    0.000 MiB       40001       for i in range(len(zs)):
+    64   52.633 MiB    0.000 MiB       40000           n = 0
+    65   52.633 MiB    0.000 MiB       40000           z = zs[i]
+    66   52.633 MiB    0.000 MiB       40000           c = cs[i]
+    67   52.633 MiB    0.121 MiB     1369666           while abs(z) < 2 and n < maxiter:
+    68   52.633 MiB    0.000 MiB     1329666               z = z * z + c
+    69   52.633 MiB    0.000 MiB     1329666               n += 1
+    70   52.633 MiB    0.000 MiB       40000           output[i] = n
+    71   52.633 MiB    0.000 MiB           1       return output
 
 
