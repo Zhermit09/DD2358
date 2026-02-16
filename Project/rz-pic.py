@@ -206,7 +206,7 @@ tube2_length = tube1_length + 2 * dz
 tube2_aperture_rad = 3 * dr
 [tube_i_max, tube_j_max] = map(int, XtoL([4 * dz, tube1_radius]))
 
-
+#@profile
 def main():
     global nz, nr, dz, dr, dt
     global QE, AMU, EPS0
