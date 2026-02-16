@@ -42,8 +42,8 @@ def gather(data, lc):
 
 
 def scatter(data, lc, value):
-    i = numpy.trunc(lc[0])
-    j = numpy.trunc(lc[1])
+    i = int(numpy.trunc(lc[0]))
+    j = int(numpy.trunc(lc[1]))
     di = lc[0] - i
     dj = lc[1] - j
 
@@ -152,10 +152,10 @@ def computeEF(phi, efz, efr):
 def plot(ax, data, scatter=False):
     pl.sca(ax)
     pl.cla()
-    cf = pl.contourf(pos_z, pos_r, numpy.transpose(data), 8, alpha=.75, linewidth=1, cmap='jet')
+    cf = pl.contourf(pos_z, pos_r, numpy.transpose(data), 8, alpha=.75, cmap='jet')
     # cf = pl.pcolormesh(pos_z, pos_r, numpy.transpose(data))
     if (scatter):
-        ax.hold(True);
+        #ax.hold(True);
         (ZZ, RR) = pl.meshgrid(pos_z, pos_r)
         ax.scatter(ZZ, RR, c=numpy.transpose(cell_type), cmap='jet')
     ax.set_yticks(pos_r)
@@ -164,7 +164,7 @@ def plot(ax, data, scatter=False):
     ax.yaxis.set_ticklabels([])
     pl.xlim(min(pos_z), max(pos_z))
     pl.ylim(min(pos_r), max(pos_r))
-    ax.grid(b=True, which='both', color='k', linestyle='-')
+    ax.grid(True, which='both', color='k', linestyle='-')
     ax.set_aspect('equal', adjustable='box')
 
 
