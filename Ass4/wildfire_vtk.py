@@ -6,9 +6,9 @@ import save_to_vtk
 
 # Constants
 GRID_SIZE = 800  # 800x800 forest grid
-FIRE_SPREAD_PROB = 0.35  # Probability that fire spreads to a neighboring tree
+FIRE_SPREAD_PROB = 0.27  # Probability that fire spreads to a neighboring tree
 BURN_TIME = 3  # Time before a tree turns into ash
-DAYS = 60  # Maximum simulation time
+DAYS = 200  # Maximum simulation time
 
 # State definitions
 EMPTY = 0    # No tree
