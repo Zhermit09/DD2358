@@ -11,7 +11,7 @@
 # requires numpy, scipy, pylab, and mathplotlib
 
 import numpy
-#import pylab as pl
+import pylab as pl
 import math
 from random import (seed, random)
 
@@ -146,7 +146,7 @@ def computeEF(phi, efz, efr):
     efr[:, -1] = (phi[:, -2] - phi[:, -1]) / dr
 
 
-"""def plot(ax, data, pos_z, pos_r, scatter=False):
+def plot(ax, data, pos_z, pos_r, scatter=False):
     pl.sca(ax)
     pl.cla()
     cf = pl.contourf(pos_z, pos_r, numpy.transpose(data), 8, alpha=.75, cmap='jet')
@@ -162,14 +162,14 @@ def computeEF(phi, efz, efr):
     pl.xlim(min(pos_z), max(pos_z))
     pl.ylim(min(pos_r), max(pos_r))
     ax.grid(True, which='both', color='k', linestyle='-')
-    ax.set_aspect('equal', adjustable='box')"""
+    ax.set_aspect('equal', adjustable='box')
 
 
 #  pl.colorbar(cf,ax=pl.gca(),orientation='horizontal',shrink=0.75, pad=0.01)
 
 
 # allocate memory space
-nz = 35
+nz = 36
 nr = 12
 dz = 1e-3
 dr = 1e-3
@@ -264,7 +264,7 @@ def main():
     pos_r = numpy.linspace(0, (nr - 1) * dr, nr)
     pos_z = numpy.linspace(0, (nz - 1) * dz, nz)
     #fig1 = pl.figure(num=None, figsize=(10, 10), dpi=80, facecolor='w', edgecolor='k')
-    #sub = (pl.subplot(211), pl.subplot(212))
+    sub = (pl.subplot(211), pl.subplot(212))
 
     # solve potential
     phi = solvePotential(phi, 1000)
@@ -377,19 +377,19 @@ def main():
             # sub = pl.subplot(111,aspect='equal')
 
             # sub[0].hold(False)
-            """plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=True)
+            plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=False)
             plot(sub[1], phi, pos_z, pos_r)
             pl.draw()
-            pl.pause(1e-4)  # allow for repaint"""
+            pl.pause(1e-4)  # allow for repaint
 
     # ----------- END OF MAIN LOOP ------------------------
-    """plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=True)
+    plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=False)
     plot(sub[1], phi, pos_z, pos_r)
     # Q = pl.quiver(pos_z, pos_r, numpy.transpose(efz), numpy.transpose(efr),units='xy')
     pl.draw()
 
     # this will block execution until figure is closed
-    pl.show()"""
+    pl.show()
 
 
 if __name__ == "__main__":
