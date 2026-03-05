@@ -167,10 +167,11 @@ def plot(ax, data, pos_z, pos_r, scatter=False):
 
 #  pl.colorbar(cf,ax=pl.gca(),orientation='horizontal',shrink=0.75, pad=0.01)
 
+draw_plot = False
 
 # allocate memory space
-nz = 36
 nr = 12
+nz = nr * 3
 dz = 1e-3
 dr = 1e-3
 dt = 5e-9
@@ -198,15 +199,16 @@ den = numpy.zeros([nz, nr])
 
 # ---- sugarcube domain --------------------
 cell_type = numpy.zeros([nz, nr])
-tube1_radius = 6 * dr
-tube1_length = 0.01
-tube1_aperture_rad = 4 * dr
+tube1_radius = (nr / 2) * dr
+tube1_length = 0.28 * nz * dz
+tube1_aperture_rad = (nr / 3) * dr
 tube2_radius = tube1_radius + dr
 tube2_length = tube1_length + 2 * dz
-tube2_aperture_rad = 3 * dr
+tube2_aperture_rad = (nr / 4) * dr
 [tube_i_max, tube_j_max] = map(int, XtoL([4 * dz, tube1_radius]))
 
-#@profile
+
+# @profile
 def main():
     global nz, nr, dz, dr, dt
     global QE, AMU, EPS0
@@ -216,8 +218,8 @@ def main():
 
     # ---------- INITIALIZATION ----------------------------------------
 
-    #pl.close('all')
-    seed()
+    # pl.close('all')
+    # seed()
 
     for i in range(0, nz):
         for j in range(0, nr):
@@ -257,14 +259,14 @@ def main():
     rho_i = numpy.zeros([nz, nr])
 
     lambda_d = math.sqrt(EPS0 * kTe / (n0 * QE))
-    #print("Debye length is %.4g, which is %.2g*dz" % (lambda_d, lambda_d / dz))
-    #print("Expected ion speed is %.2f m/s" % math.sqrt(2 * phi0 * qm))
+    # print("Debye length is %.4g, which is %.2g*dz" % (lambda_d, lambda_d / dz))
+    # print("Expected ion speed is %.2f m/s" % math.sqrt(2 * phi0 * qm))
 
     # positions for plotting
     pos_r = numpy.linspace(0, (nr - 1) * dr, nr)
     pos_z = numpy.linspace(0, (nz - 1) * dz, nz)
-    #fig1 = pl.figure(num=None, figsize=(10, 10), dpi=80, facecolor='w', edgecolor='k')
-    sub = (pl.subplot(211), pl.subplot(212))
+    # fig1 = pl.figure(num=None, figsize=(10, 10), dpi=80, facecolor='w', edgecolor='k')
+    if draw_plot: sub = (pl.subplot(211), pl.subplot(212))
 
     # solve potential
     phi = solvePotential(phi, 1000)
@@ -370,8 +372,8 @@ def main():
         # recompute reference density
         n0 = den.max()
 
-        if ts % 10 == 0:
-            #print("ts: %d, np: %d, phi range: %.2g:%.2g, max_den: %.3g, max_zvel: %.f" % (ts, len(particles), phi.min(),
+        if draw_plot and ts % 10 == 0:
+            # print("ts: %d, np: %d, phi range: %.2g:%.2g, max_den: %.3g, max_zvel: %.f" % (ts, len(particles), phi.min(),
             #                                                                              phi.max(), n0, max_zvel))
 
             # sub = pl.subplot(111,aspect='equal')
@@ -383,13 +385,14 @@ def main():
             pl.pause(1e-4)  # allow for repaint
 
     # ----------- END OF MAIN LOOP ------------------------
-    plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=False)
-    plot(sub[1], phi, pos_z, pos_r)
-    # Q = pl.quiver(pos_z, pos_r, numpy.transpose(efz), numpy.transpose(efr),units='xy')
-    pl.draw()
+    if draw_plot:
+        plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=False)
+        plot(sub[1], phi, pos_z, pos_r)
+        # Q = pl.quiver(pos_z, pos_r, numpy.transpose(efz), numpy.transpose(efr),units='xy')
+        pl.draw()
 
-    # this will block execution until figure is closed
-    pl.show()
+        # this will block execution until figure is closed
+        pl.show()
 
 
 if __name__ == "__main__":
