@@ -87,14 +87,15 @@ def reassign_globals(module, nr=12):
         setattr(module, name, val)
 
 
+
 def validate(base, changed, nr=12, seed=42):
-    reassign_globals(base, nr)
+    base.reassign_globals(nr)
     random.seed(seed)
     base.main()
     den1 = base.den
     phi1 = base.phi
 
-    reassign_globals(changed, nr)
+    changed.reassign_globals(nr)
     random.seed(seed)
     changed.main()
     den2 = changed.den
@@ -157,6 +158,10 @@ def benchmark(modules, nrss, args, names, n=10, save=True):
 
     return data
 
+import rz_pic
+import rz_pic_C
+
+validate(rz_pic, rz_pic_C)
 
 """import rz_pic
 

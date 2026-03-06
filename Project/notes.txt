@@ -1,0 +1,4 @@
+download the file, make minimal library fixes due to Python 2, move script into main function for profiling
+
+the most expensive functions are main, solvePotential, gather, scatter
+main has no definitive bottleneck, alot of small calls that accumulate time
