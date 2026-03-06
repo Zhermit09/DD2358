@@ -78,57 +78,62 @@ def sampleIsotropicVel(vth):
     return vel
 
 
-# simple Jacobian solver, does not do any convergence checking
-def solvePotential(phi, max_it=100):
-    # make copy of dirichlet nodes
+#simple Jacobian solver, does not do any convergence checking
+def solvePotential(phi,max_it=100):
+
+    #make copy of dirichlet nodes
     P = numpy.copy(phi)
 
     g = numpy.zeros_like(phi)
-    dz2 = dz * dz
-    dr2 = dr * dr
+    dz2 = dz*dz
+    dr2 = dr*dr
 
-    # rho_e = numpy.zeros_like(phi)
+    rho_e = numpy.zeros_like(phi)
 
-    # set radia
+    #set radia
     r = numpy.zeros_like(phi)
     for i in range(nz):
         for j in range(nr):
             r[i][j] = R(j)
 
-    for it in range(max_it):
-        # compute RHS
-        # rho_e = QE * n0 * numpy.exp(numpy.subtract(phi, phi0) / kTe)
+    for it in range (max_it):
 
-        # for i in range(1, nz - 1):
-        #    for j in range(1, nr - 1):
-        #        if (cell_type[i, j] > 0):
+        #compute RHS
+        #rho_e = QE*n0*numpy.exp(numpy.subtract(phi,phi0)/kTe)
+
+        #for i in range(1,nz-1):
+        #    for j in range(1,nr-1):
+
+        #        if (cell_type[i,j]>0):
         #            continue
 
-        #        rho_e = QE * n0 * math.exp((phi[i, j] - phi0) / kTe)
-        #        b = (rho_i[i, j] - rho_e) / EPS0;
-        #        g[i, j] = (b + (phi[i, j - 1] + phi[i, j + 1]) / dr2 + (phi[i, j - 1] - phi[i, j + 1]) / (
-        #                    2 * dr * r[i, j]) + (phi[i - 1, j] + phi[i + 1, j]) / dz2) / (2 / dr2 + 2 / dz2)
+        #       rho_e=QE*n0*math.exp((phi[i,j]-phi0)/kTe)
+        #        b = (rho_i[i,j]-rho_e)/EPS0;
+        #        g[i,j] = (b +
+        #                 (phi[i,j-1]+phi[i,j+1])/dr2 +
+        #                 (phi[i,j-1]-phi[i,j+1])/(2*dr*r[i,j]) +
+        #                 (phi[i-1,j] + phi[i+1,j])/dz2) / (2/dr2 + 2/dz2)
 
-        #        phi[i, j] = g[i, j]
+        #        phi[i,j]=g[i,j]
 
-        # compute electron term
-        rho_e = QE * n0 * numpy.exp(numpy.subtract(P, phi0) / kTe)
-        b = numpy.where(cell_type <= 0, (rho_i - rho_e) / EPS0, 0)
+        #compute electron term
+        rho_e = QE*n0*numpy.exp(numpy.subtract(P,phi0)/kTe)
+        b = numpy.where(cell_type<=0,(rho_i - rho_e)/EPS0,0)
 
-        # regular form inside
-        g[1:-1, 1:-1] = (b[1:-1, 1:-1] +
-                         (phi[1:-1, 2:] + phi[1:-1, :-2]) / dr2 +
-                         (phi[1:-1, 0:-2] - phi[1:-1, 2:]) / (2 * dr * r[1:-1, 1:-1]) +
-                         (phi[2:, 1:-1] + phi[:-2, 1:-1]) / dz2) / (2 / dr2 + 2 / dz2)
+        #regular form inside
+        g[1:-1,1:-1] = (b[1:-1,1:-1] +
+                        (phi[1:-1,2:]+phi[1:-1,:-2])/dr2 +
+                        (phi[1:-1,0:-2]-phi[1:-1,2:])/(2*dr*r[1:-1,1:-1]) +
+                        (phi[2:,1:-1] + phi[:-2,1:-1])/dz2) / (2/dr2 + 2/dz2)
 
-        # neumann boundaries
-        g[0] = g[1]  # left
-        g[-1] = g[-2]  # right
-        g[:, -1] = g[:, -2]  # top
-        g[:, 0] = g[:, 1]
+        #neumann boundaries
+        g[0] = g[1]       #left
+        g[-1] = g[-2]     #right
+        g[:,-1] = g[:,-2] #top
+        g[:,0] = g[:,1]
 
-        # dirichlet nodes
-        phi = numpy.where(cell_type > 0, P, g)
+        #dirichlet nodes
+        phi = numpy.where(cell_type>0,P,g)
 
     return phi
 
@@ -207,8 +212,8 @@ tube2_length = tube1_length + 2 * dz
 tube2_aperture_rad = (nr / 4) * dr
 [tube_i_max, tube_j_max] = map(int, XtoL([4 * dz, tube1_radius]))
 
-def reassign_globals(nr=12):
-    global nz, dz, dr, dt
+def reassign_globals(NR=12):
+    global nr, nz, dz, dr, dt
     global QE, AMU, EPS0
     global charge, m, qm, spwt
     global n0, phi0, phi1, kTe
@@ -217,6 +222,7 @@ def reassign_globals(nr=12):
     global tube1_radius, tube1_length, tube1_aperture_rad
     global tube2_radius, tube2_length, tube2_aperture_rad
 
+    nr = NR
     nz = nr * 3
     dz = 1e-3
     dr = 1e-3
