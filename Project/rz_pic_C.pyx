@@ -15,37 +15,40 @@ import pylab as pl
 import math
 from random import (seed, random)
 
+cimport cython
+# noinspection PyUnresolvedReferences
+cimport numpy
 
-def XtoL(pos):
-    lc = [pos[0] / dz, pos[1] / dr]
+numpy.import_array()
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef double[:] XtoL(double[:] pos):
+    cdef double[:] lc = numpy.array([pos[0] / dz, pos[1] / dr])
     return lc
 
-
-def Pos(lc):
-    pos = [lc[0] * dz, lc[1] * dr]
+cdef double[:]  Pos(double[:] lc):
+    cdef double[:]  pos = numpy.array([lc[0] * dz, lc[1] * dr])
     return pos
 
-
-def R(j):
+cdef double R(double j):
     return j * dr
 
-
-def gather(data, lc):
-    i = math.trunc(lc[0])
-    j = math.trunc(lc[1])
-    di = lc[0] - i
-    dj = lc[1] - j
+cdef double gather(double[:, :] data, double[:] lc):
+    cdef int i = math.trunc(lc[0])
+    cdef int j = math.trunc(lc[1])
+    cdef double di = lc[0] - i
+    cdef double dj = lc[1] - j
     return (data[i][j] * (1 - di) * (1 - dj) +
             data[i + 1][j] * di * (1 - dj) +
             data[i][j + 1] * (1 - di) * dj +
             data[i + 1][j + 1] * di * dj)
 
-
-def scatter(data, lc, value):
-    i = int(numpy.trunc(lc[0]))
-    j = int(numpy.trunc(lc[1]))
-    di = lc[0] - i
-    dj = lc[1] - j
+cdef void scatter(double[:, :] data, double[:] lc, int value):
+    cdef int i = int(numpy.trunc(lc[0]))
+    cdef int j = int(numpy.trunc(lc[1]))
+    cdef double di = lc[0] - i
+    cdef double dj = lc[1] - j
 
     data[i][j] += (1 - di) * (1 - dj) * value
     data[i + 1][j] += di * (1 - dj) * value
@@ -61,66 +64,57 @@ class Particle:
 
 
 # --- helper functions ----
-def sampleIsotropicVel(vth):
+cdef double[:] sampleIsotropicVel(int vth):
     # pick a random angle
-    theta = 2 * math.pi * random()
+    cdef double theta = 2 * math.pi * random()
 
     # pick a random direction for n[2]
-    R = -1.0 + 2 * random()
-    a = math.sqrt(1 - R * R)
-    n = (math.cos(theta) * a, math.sin(theta) * a, R)
+    cdef double R = -1.0 + 2 * random()
+    cdef double a = math.sqrt(1 - R * R)
+    cdef double[:] n = numpy.array([math.cos(theta) * a, math.sin(theta) * a, R])
 
     # pick maxwellian velocities
-    vm = numpy.zeros(3)
+    cdef double[:] vm = numpy.zeros(3)
     vm[0:3] = math.sqrt(2) * vth * (2 * (random() + random() + random() - 1.5))
 
-    vel = (n[0] * vm[0], n[1] * vm[1], n[2] * vm[2])
+    cdef double[:] vel = numpy.array([n[0] * vm[0], n[1] * vm[1], n[2] * vm[2]])
     return vel
 
-
 # simple Jacobian solver, does not do any convergence checking
-def solvePotential(phi, max_it=100):
+cdef double[:, :] solvePotential(double[:, :] phi, int max_it=100):
     # make copy of dirichlet nodes
-    P = numpy.copy(phi)
+    cdef double[:, :] P = numpy.copy(phi)
 
-    g = numpy.zeros_like(phi)
-    dz2 = dz * dz
-    dr2 = dr * dr
+    cdef double[:, :] g = numpy.zeros_like(phi)
+    cdef double dz2 = dz * dz
+    cdef double dr2 = dr * dr
 
     # rho_e = numpy.zeros_like(phi)
 
     # set radia
-    r = numpy.zeros_like(phi)
+    cdef double[:, :] r = numpy.zeros_like(phi)
+    cdef int i, j
     for i in range(nz):
         for j in range(nr):
             r[i][j] = R(j)
 
+    cdef int it
+    cdef double[:, :] rho_e, b
     for it in range(max_it):
-        # compute RHS
-        # rho_e = QE * n0 * numpy.exp(numpy.subtract(phi, phi0) / kTe)
-
-        # for i in range(1, nz - 1):
-        #    for j in range(1, nr - 1):
-        #        if (cell_type[i, j] > 0):
-        #            continue
-
-        #        rho_e = QE * n0 * math.exp((phi[i, j] - phi0) / kTe)
-        #        b = (rho_i[i, j] - rho_e) / EPS0;
-        #        g[i, j] = (b + (phi[i, j - 1] + phi[i, j + 1]) / dr2 + (phi[i, j - 1] - phi[i, j + 1]) / (
-        #                    2 * dr * r[i, j]) + (phi[i - 1, j] + phi[i + 1, j]) / dz2) / (2 / dr2 + 2 / dz2)
-
-        #        phi[i, j] = g[i, j]
-
         # compute electron term
         rho_e = QE * n0 * numpy.exp(numpy.subtract(P, phi0) / kTe)
-        b = numpy.where(cell_type <= 0, (rho_i - rho_e) / EPS0, 0)
+        b = numpy.where(numpy.asarray(cell_type) <= 0, (numpy.subtract(rho_i, rho_e)) / EPS0, 0)
 
-        # regular form inside
-        g[1:-1, 1:-1] = (b[1:-1, 1:-1] +
-                         (phi[1:-1, 2:] + phi[1:-1, :-2]) / dr2 +
-                         (phi[1:-1, 0:-2] - phi[1:-1, 2:]) / (2 * dr * r[1:-1, 1:-1]) +
-                         (phi[2:, 1:-1] + phi[:-2, 1:-1]) / dz2) / (2 / dr2 + 2 / dz2)
-
+        numpy.divide(
+            numpy.add(
+                numpy.add(b[1:-1, 1:-1], numpy.divide(numpy.add(phi[1:-1, 2:], phi[1:-1, :-2]), dr2)),
+                numpy.add(
+                    numpy.divide(subtract2(phi[1:-1, 0:-2], phi[1:-1, 2:]), multiply( r[1:-1, 1:-1],2 * dr)),
+                    divide2(add2(phi[2:, 1:-1], phi[:-2, 1:-1]), dz2)
+                )
+            ),
+            2 / dr2 + 2 / dz2
+        )
         # neumann boundaries
         g[0] = g[1]  # left
         g[-1] = g[-2]  # right
@@ -128,23 +122,22 @@ def solvePotential(phi, max_it=100):
         g[:, 0] = g[:, 1]
 
         # dirichlet nodes
-        phi = numpy.where(cell_type > 0, P, g)
+        phi = numpy.where(numpy.asarray(cell_type) > 0, P, g)
 
     return phi
 
-
 # computes electric field
-def computeEF(phi, efz, efr):
+cdef void computeEF(double[:, :] phi, double[:, :] efz, double[:, :] efr):
     # central difference, not right on walls
-    efz[1:-1] = (phi[0:nz - 2] - phi[2:nz + 1]) / (2 * dz)
-    efr[:, 1:-1] = (phi[:, 0:nr - 2] - phi[:, 2:nr + 1]) / (2 * dr)
+
+    efz[1:-1] = divide2(subtract2(phi[0:nz - 2], phi[2:nz + 1]), (2 * dz))
+    efr[:, 1:-1] = divide2(subtract2(phi[:, 0:nr - 2], phi[:, 2:nr + 1]), (2 * dr))
 
     # one-sided difference on boundaries
-    efz[0, :] = (phi[0, :] - phi[1, :]) / dz
-    efz[-1, :] = (phi[-2, :] - phi[-1, :]) / dz
-    efr[:, 0] = (phi[:, 0] - phi[:, 1]) / dr
-    efr[:, -1] = (phi[:, -2] - phi[:, -1]) / dr
-
+    efz[0, :] = divide1(subtract1(phi[0, :], phi[1, :]), dz)
+    efz[-1, :] = divide1(subtract1(phi[-2, :], phi[-1, :]), dz)
+    efr[:, 0] = divide1(subtract1(phi[:, 0], phi[:, 1]), dr)
+    efr[:, -1] = divide1(subtract1(phi[:, -2], phi[:, -1]), dr)
 
 def plot(ax, data, pos_z, pos_r, scatter=False):
     pl.sca(ax)
@@ -164,59 +157,111 @@ def plot(ax, data, pos_z, pos_r, scatter=False):
     ax.grid(True, which='both', color='k', linestyle='-')
     ax.set_aspect('equal', adjustable='box')
 
-
 #  pl.colorbar(cf,ax=pl.gca(),orientation='horizontal',shrink=0.75, pad=0.01)
 
-draw_plot = False
+
+cdef double[:, :] divide2(double[:, :] A, double s):
+    cdef i, j
+    cdef int n = A.shape[0]
+    cdef int m = A.shape[1]
+    cdef double[:, :] B = numpy.zeros_like(A)
+
+    for i in range(n):
+        for j in range(m):
+            B[i, j] = A[i, j] / s
+    return B
+
+cdef double[:, :] subtract2(double[:, :] A, double[:, :] B):
+    cdef i, j
+    cdef int n = A.shape[0]
+    cdef int m = A.shape[1]
+    cdef double[:, :] C = numpy.zeros_like(A)
+
+    for i in range(n):
+        for j in range(m):
+            C[i, j] = A[i, j] - B[i, j]
+    return C
+
+cdef double[:, :] add2(double[:, :] A, double[:, :] B):
+    cdef i, j
+    cdef int n = A.shape[0]
+    cdef int m = A.shape[1]
+    cdef double[:, :] C = numpy.zeros_like(A)
+
+    for i in range(n):
+        for j in range(m):
+            C[i, j] = A[i, j] + B[i, j]
+    return C
+
+cdef double[:] divide1(double[:] A, double s):
+    cdef i
+    cdef int n = A.shape[0]
+    cdef double[:] B = numpy.zeros_like(A)
+
+    for i in range(n):
+        B[i] = A[i] / s
+    return B
+
+cdef double[:] subtract1(double[:] A, double[:] B):
+    cdef i
+    cdef int n = A.shape[0]
+    cdef double[:] C = numpy.zeros_like(A)
+
+    for i in range(n):
+        C[i] = A[i] - B[i]
+    return C
+
+cdef double[:] add1(double[:] A, double[:] B):
+    cdef i
+    cdef int n = A.shape[0]
+    cdef double[:] C = numpy.zeros_like(A)
+
+    for i in range(n):
+        C[i] = A[i] - B[i]
+    return C
+
+cdef bool draw_plot = False
 
 # allocate memory space
-nr = 12
-nz = nr * 3
-dz = 1e-3
-dr = 1e-3
-dt = 5e-9
+cdef int nr = 12
+cdef int nz = nr * 3
+cdef double dz = 1e-3
+cdef double dr = 1e-3
+cdef double dt = 5e-9
 
-QE = 1.602e-19
-AMU = 1.661e-27
-EPS0 = 8.854e-12
+cdef double QE = 1.602e-19
+cdef double AMU = 1.661e-27
+cdef double EPS0 = 8.854e-12
 
-charge = QE
-m = 40 * AMU  # argon ions
-qm = charge / m
-spwt = 50
+cdef double charge = QE
+cdef double m = 40 * AMU  # argon ions
+cdef double qm = charge / m
+cdef int spwt = 50
 
 # solver parameters
-n0 = 1e12
-phi0 = 100
-phi1 = 0
-kTe = 5
+cdef double n0 = 1e12
+cdef int phi0 = 100
+cdef int phi1 = 0
+cdef int kTe = 5
 
-phi = numpy.zeros([nz, nr])
-efz = numpy.zeros([nz, nr])
-efr = numpy.zeros([nz, nr])
-rho_i = numpy.zeros([nz, nr])
-den = numpy.zeros([nz, nr])
+cdef double[:, :] phi = numpy.zeros([nz, nr])
+cdef double[:, :] efz = numpy.zeros([nz, nr])
+cdef double[:, :] efr = numpy.zeros([nz, nr])
+cdef double[:, :] rho_i = numpy.zeros([nz, nr])
+cdef double[:, :] den = numpy.zeros([nz, nr])
 
 # ---- sugarcube domain --------------------
-cell_type = numpy.zeros([nz, nr])
-tube1_radius = (nr / 2) * dr
-tube1_length = 0.28 * nz * dz
-tube1_aperture_rad = (nr / 3) * dr
-tube2_radius = tube1_radius + dr
-tube2_length = tube1_length + 2 * dz
-tube2_aperture_rad = (nr / 4) * dr
-[tube_i_max, tube_j_max] = map(int, XtoL([4 * dz, tube1_radius]))
+cdef double[:, :] cell_type = numpy.zeros([nz, nr])
+cdef double tube1_radius = (nr / 2) * dr
+cdef double tube1_length = 0.28 * nz * dz
+cdef double tube1_aperture_rad = (nr / 3) * dr
+cdef double tube2_radius = tube1_radius + dr
+cdef double tube2_length = tube1_length + 2 * dz
+cdef double tube2_aperture_rad = (nr / 4) * dr
+cdef int tube_i_max, tube_j_max
+[tube_i_max, tube_j_max] = map(int, XtoL(numpy.array([4 * dz, tube1_radius])))
 
-def reassign_globals(nr=12):
-    global nz, dz, dr, dt
-    global QE, AMU, EPS0
-    global charge, m, qm, spwt
-    global n0, phi0, phi1, kTe
-    global phi, efz, efr, rho_i, den
-    global cell_type, tube_i_max, tube_j_max
-    global tube1_radius, tube1_length, tube1_aperture_rad
-    global tube2_radius, tube2_length, tube2_aperture_rad
-
+cpdef void reassign_globals(int nr=12):
     nz = nr * 3
     dz = 1e-3
     dr = 1e-3
@@ -251,25 +296,22 @@ def reassign_globals(nr=12):
     tube2_radius = tube1_radius + dr
     tube2_length = tube1_length + 2 * dz
     tube2_aperture_rad = (nr / 4) * dr
-    [tube_i_max, tube_j_max] = map(int, XtoL([4 * dz, tube1_radius]))
-
+    [tube_i_max, tube_j_max] = map(int, XtoL(numpy.array([4 * dz, tube1_radius])))
 
 # @profile
-def main():
+cpdef main():
     global nz, nr, dz, dr, dt
     global QE, AMU, EPS0
     global charge, m, qm, spwt
     global n0, phi0, phi1, kTe
     global phi, efz, efr, rho_i, den
 
-    # ---------- INITIALIZATION ----------------------------------------
-
-    # pl.close('all')
-    # seed()
+    cdef int i, j
+    cdef double[:] pos
 
     for i in range(0, nz):
         for j in range(0, nr):
-            pos = Pos([i, j])  # node position
+            pos = Pos(numpy.asarray([i, j], dtype=numpy.float64))  # node position
 
             # inner tube
             if ((i == 0 and pos[1] < tube1_radius) or
@@ -350,7 +392,7 @@ def main():
 
                 # generate this many particles
                 for p in range(mp_new):
-                    pos = Pos([i + random(), j + random()])
+                    pos = Pos(numpy.array([i + random(), j + random()]))
                     vel = sampleIsotropicVel(300)
                     particles.append(Particle(pos, vel))
 
@@ -407,7 +449,7 @@ def main():
 
         # divide by node volume
         den /= node_volume
-        rho_i = charge * den
+        rho_i = charge * numpy.asarray(den)
 
         # update potential
         phi = solvePotential(phi)
@@ -425,21 +467,20 @@ def main():
             # sub = pl.subplot(111,aspect='equal')
 
             # sub[0].hold(False)
-            plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=False)
+            plot(sub[0], numpy.log10(numpy.where(numpy.asarray(den) <= 1e4, 1e4, den)), pos_z, pos_r, scatter=False)
             plot(sub[1], phi, pos_z, pos_r)
             pl.draw()
             pl.pause(1e-4)  # allow for repaint
 
     # ----------- END OF MAIN LOOP ------------------------
     if draw_plot:
-        plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=False)
+        plot(sub[0], numpy.log10(numpy.where(numpy.asarray(den) <= 1e4, 1e4, den)), pos_z, pos_r, scatter=False)
         plot(sub[1], phi, pos_z, pos_r)
         # Q = pl.quiver(pos_z, pos_r, numpy.transpose(efz), numpy.transpose(efr),units='xy')
         pl.draw()
 
         # this will block execution until figure is closed
         pl.show()
-
 
 if __name__ == "__main__":
     main()

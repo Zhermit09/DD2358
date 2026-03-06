@@ -1,5 +1,5 @@
-cimport cython
 import numpy as np
+cimport cython
 # noinspection PyUnresolvedReferences
 cimport numpy as np
 

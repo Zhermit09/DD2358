@@ -161,8 +161,8 @@ def benchmark(modules, nrss, args, names, n=10, save=True):
 import rz_pic
 import rz_pic_C
 
-validate(rz_pic, rz_pic_C)
-
+validate(rz_pic_C, rz_pic_C)
+#rz_pic_C.main()
 """import rz_pic
 
 nrs = [8, 12, 14]
