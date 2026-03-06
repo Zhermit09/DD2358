@@ -100,21 +100,22 @@ cdef double[:, :] solvePotential(double[:, :] phi, int max_it=100):
 
     cdef int it
     cdef double[:, :] rho_e, b
+    cdef double denom
     for it in range(max_it):
         # compute electron term
         rho_e = QE * n0 * numpy.exp(numpy.subtract(P, phi0) / kTe)
-        b = numpy.where(numpy.asarray(cell_type) <= 0, (numpy.subtract(rho_i, rho_e)) / EPS0, 0)
+        b = numpy.where(numpy.asarray(cell_type) <= 0, numpy.subtract(rho_i, rho_e) / EPS0, 0)
 
-        numpy.divide(
-            numpy.add(
-                numpy.add(b[1:-1, 1:-1], numpy.divide(numpy.add(phi[1:-1, 2:], phi[1:-1, :-2]), dr2)),
-                numpy.add(
-                    numpy.divide(subtract2(phi[1:-1, 0:-2], phi[1:-1, 2:]), multiply( r[1:-1, 1:-1],2 * dr)),
-                    divide2(add2(phi[2:, 1:-1], phi[:-2, 1:-1]), dz2)
-                )
-            ),
-            2 / dr2 + 2 / dz2
-        )
+        # regular form inside
+        denom = 2.0 / dr2 + 2.0 / dz2
+        for i in range(1, nz - 1):
+            for j in range(1, nr - 1):
+                g[i, j] = (
+                                  b[i, j] +
+                                  (phi[i, j + 1] + phi[i, j - 1]) / dr2 +
+                                  (phi[i, j - 1] - phi[i, j + 1]) / (2 * dr * r[i, j]) +
+                                  (phi[i + 1, j] + phi[i - 1, j]) / dz2
+                          ) / denom
         # neumann boundaries
         g[0] = g[1]  # left
         g[-1] = g[-2]  # right
@@ -129,15 +130,21 @@ cdef double[:, :] solvePotential(double[:, :] phi, int max_it=100):
 # computes electric field
 cdef void computeEF(double[:, :] phi, double[:, :] efz, double[:, :] efr):
     # central difference, not right on walls
+    cdef int i, j
 
-    efz[1:-1] = divide2(subtract2(phi[0:nz - 2], phi[2:nz + 1]), (2 * dz))
-    efr[:, 1:-1] = divide2(subtract2(phi[:, 0:nr - 2], phi[:, 2:nr + 1]), (2 * dr))
+    for i in range(1, nz - 1):
+        for j in range(nr):
+            efz[i, j] = (phi[i - 1, j] - phi[i + 1, j]) / (2.0 * dz)
+
+    for i in range(nz):
+        for j in range(1, nr - 1):
+            efr[i, j] = (phi[i, j - 1] - phi[i, j + 1]) / (2.0 * dr)
 
     # one-sided difference on boundaries
-    efz[0, :] = divide1(subtract1(phi[0, :], phi[1, :]), dz)
-    efz[-1, :] = divide1(subtract1(phi[-2, :], phi[-1, :]), dz)
-    efr[:, 0] = divide1(subtract1(phi[:, 0], phi[:, 1]), dr)
-    efr[:, -1] = divide1(subtract1(phi[:, -2], phi[:, -1]), dr)
+    for j in range(nr): efz[0, j] = (phi[0, j] - phi[1, j]) / dz
+    for j in range(nr): efz[nz - 1, j] = (phi[nz - 2, j] - phi[nz - 1, j]) / dz
+    for i in range(nz): efr[i, 0] = (phi[i, 0] - phi[i, 1]) / dr
+    for i in range(nz): efr[i, nr - 1] = (phi[i, nr - 2] - phi[i, nr - 1]) / dr
 
 def plot(ax, data, pos_z, pos_r, scatter=False):
     pl.sca(ax)
@@ -158,7 +165,7 @@ def plot(ax, data, pos_z, pos_r, scatter=False):
     ax.set_aspect('equal', adjustable='box')
 
 #  pl.colorbar(cf,ax=pl.gca(),orientation='horizontal',shrink=0.75, pad=0.01)
-
+"""
 
 cdef double[:, :] divide2(double[:, :] A, double s):
     cdef i, j
@@ -219,7 +226,7 @@ cdef double[:] add1(double[:] A, double[:] B):
     for i in range(n):
         C[i] = A[i] - B[i]
     return C
-
+"""
 cdef bool draw_plot = False
 
 # allocate memory space
@@ -315,20 +322,21 @@ cpdef main():
 
             # inner tube
             if ((i == 0 and pos[1] < tube1_radius) or
-                    (pos[0] <= tube1_length and pos[1] >= tube1_radius and pos[1] < tube1_radius + 0.5 * dr) or
-                    (pos[0] >= tube1_length and pos[0] < tube1_length + 0.5 * dz and
-                     pos[1] >= tube1_aperture_rad and pos[1] < tube1_radius)):
+                    (pos[0] <= tube1_length and tube1_radius <= pos[1] < tube1_radius + 0.5 * dr) or
+                    (tube1_length <= pos[0] < tube1_length + 0.5 * dz and
+                     tube1_aperture_rad <= pos[1] < tube1_radius)):
                 cell_type[i][j] = 1
                 phi[i][j] = phi0
 
-            if ((pos[0] <= tube2_length and pos[1] >= tube2_radius and pos[1] < tube2_radius + 0.5 * dr) or
-                    (pos[0] >= tube2_length and pos[0] <= tube2_length + 1.5 * dz and
-                     pos[1] >= tube2_aperture_rad and pos[1] <= tube2_radius)):
+            if ((pos[0] <= tube2_length and tube2_radius <= pos[1] < tube2_radius + 0.5 * dr) or
+                    (tube2_length <= pos[0] <= tube2_length + 1.5 * dz and
+                     tube2_aperture_rad <= pos[1] <= tube2_radius)):
                 cell_type[i][j] = 2
                 phi[i][j] = phi1
 
     # ----------- COMPUTE NODE VOLUMES ------------------------
-    node_volume = numpy.zeros([nz, nr])
+    cdef double[:,:] node_volume = numpy.zeros([nz, nr])
+    cdef double j_min, j_max, a
     for i in range(0, nz):
         for j in range(0, nr):
             j_min = j - 0.5
@@ -379,7 +387,7 @@ cpdef main():
                 if cell_type[i][j] > 0: continue
 
                 # interpolate node volume to cell center to get cell volume
-                cell_volume = gather(node_volume, (i + 0.5, j + 0.5))
+                cell_volume = gather(node_volume, numpy.array([i + 0.5, j + 0.5]))
 
                 # floating point production rate
                 mpf_new = dni * cell_volume / spwt + mpf_rem[i][j]
@@ -458,7 +466,7 @@ cpdef main():
         computeEF(phi, efz, efr)
 
         # recompute reference density
-        n0 = den.max()
+        n0 = numpy.asarray(den).max()
 
         if draw_plot and ts % 10 == 0:
             # print("ts: %d, np: %d, phi range: %.2g:%.2g, max_den: %.3g, max_zvel: %.f" % (ts, len(particles), phi.min(),
