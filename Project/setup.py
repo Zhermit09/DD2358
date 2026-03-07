@@ -4,14 +4,22 @@ import numpy
 
 extensions = [
     Extension(
-        "*", ["*.pyx"],
-        include_dirs=[numpy.get_include()]
+        "*",
+        ["*.pyx"],
+        include_dirs=[numpy.get_include()],
+        extra_compile_args=["-O3"],   # compiler optimization
     ),
 ]
 
 setup(
     ext_modules=cythonize(
         extensions,
-        compiler_directives={"language_level": "3"}
+        compiler_directives={
+            "language_level": 3,
+            "boundscheck": False,
+            "initializedcheck": False,
+            "nonecheck": False
+        },
+        annotate=True,   # generates HTML performance report
     )
 )

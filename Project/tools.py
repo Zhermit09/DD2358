@@ -8,86 +8,6 @@ from pathlib import Path
 from datetime import datetime
 from timeit import default_timer as timer
 
-
-def reassign_globals(module, nr=12):
-    def XtoL(pos):
-        lc = [pos[0] / dz, pos[1] / dr]
-        return lc
-
-    nz = nr * 3
-    dz = 1e-3
-    dr = 1e-3
-    dt = 5e-9
-
-    QE = 1.602e-19
-    AMU = 1.661e-27
-    EPS0 = 8.854e-12
-
-    charge = QE
-    m = 40 * AMU  # argon ions
-    qm = charge / m
-    spwt = 50
-
-    # solver parameters
-    n0 = 1e12
-    phi0 = 100
-    phi1 = 0
-    kTe = 5
-
-    phi = np.zeros([nz, nr])
-    efz = np.zeros([nz, nr])
-    efr = np.zeros([nz, nr])
-    rho_i = np.zeros([nz, nr])
-    den = np.zeros([nz, nr])
-
-    # ---- sugarcube domain --------------------
-    cell_type = np.zeros([nz, nr])
-    tube1_radius = (nr / 2) * dr
-    tube1_length = 0.28 * nz * dz
-    tube1_aperture_rad = (nr / 3) * dr
-    tube2_radius = tube1_radius + dr
-    tube2_length = tube1_length + 2 * dz
-    tube2_aperture_rad = (nr / 4) * dr
-    [tube_i_max, tube_j_max] = map(int, XtoL([4 * dz, tube1_radius]))
-
-    globals_dict = {
-        "nr": nr,
-        "nz": nz,
-        "dz": dz,
-        "dr": dr,
-        "dt": dt,
-        "QE": QE,
-        "AMU": AMU,
-        "EPS0": EPS0,
-        "charge": charge,
-        "m": m,
-        "qm": qm,
-        "spwt": spwt,
-        "n0": n0,
-        "phi0": phi0,
-        "phi1": phi1,
-        "kTe": kTe,
-        "phi": phi,
-        "efz": efz,
-        "efr": efr,
-        "rho_i": rho_i,
-        "den": den,
-        "cell_type": cell_type,
-        "tube1_radius": tube1_radius,
-        "tube1_length": tube1_length,
-        "tube1_aperture_rad": tube1_aperture_rad,
-        "tube2_radius": tube2_radius,
-        "tube2_length": tube2_length,
-        "tube2_aperture_rad": tube2_aperture_rad,
-        "tube_i_max": tube_i_max,
-        "tube_j_max": tube_j_max,
-    }
-
-    for name, val in globals_dict.items():
-        setattr(module, name, val)
-
-
-
 def validate(base, changed, nr=12, seed=42):
     base.reassign_globals(nr)
     random.seed(seed)
@@ -103,13 +23,14 @@ def validate(base, changed, nr=12, seed=42):
 
     np.testing.assert_allclose(den1, den2)
     np.testing.assert_allclose(phi1, phi2)
+    print("Valid!")
 
 
 def benchmark_run(module, nr, args=(), n=10):
     print(f"[{datetime.now()}]", f"Benchmarking ({module.__name__}):\t", nr)
     times = []
     for _ in range(n):
-        reassign_globals(module, nr)
+        module.reassign_globals(nr)
 
         start = timer()
         module.main(*args)
@@ -162,8 +83,8 @@ import rz_pic
 import rz_pic_C2
 
 #rz_pic_C2.main()
-validate(rz_pic, rz_pic_C2, 8)
+validate(rz_pic_C2, rz_pic, 8)
 
-"""nrs = [8, 12, 14]
-data = benchmark([rz_pic, rz_pic_C2], [nrs, nrs], [(), ()], ["base", "cython"], 3)
-plot(data)"""
+nrs = [8, 12, 14]
+data = benchmark([rz_pic_C2, rz_pic], [nrs, nrs], [(), ()], ["cython", "base"], 3)
+plot(data)
