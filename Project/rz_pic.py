@@ -212,10 +212,7 @@ tube2_aperture_rad = (nr / 4) * dr
 
 
 def reassign_globals(NR=12):
-    global nr, nz, dz, dr, dt
-    global QE, AMU, EPS0
-    global charge, m, qm, spwt
-    global n0, phi0, phi1, kTe
+    global nr, nz, n0
     global phi, efz, efr, rho_i, den
     global cell_type, tube_i_max, tube_j_max
     global tube1_radius, tube1_length, tube1_aperture_rad
@@ -223,24 +220,7 @@ def reassign_globals(NR=12):
 
     nr = NR
     nz = nr * 3
-    dz = 1e-3
-    dr = 1e-3
-    dt = 5e-9
-
-    QE = 1.602e-19
-    AMU = 1.661e-27
-    EPS0 = 8.854e-12
-
-    charge = QE
-    m = 40 * AMU  # argon ions
-    qm = charge / m
-    spwt = 50
-
-    # solver parameters
     n0 = 1e12
-    phi0 = 100
-    phi1 = 0
-    kTe = 5
 
     phi = numpy.zeros([nz, nr])
     efz = numpy.zeros([nz, nr])

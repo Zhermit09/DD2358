@@ -18,11 +18,10 @@ from random import (seed, random)
 cimport cython
 # noinspection PyUnresolvedReferences
 cimport numpy
+from libc.math cimport exp
 
 numpy.import_array()
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
 cdef XtoL(pos):
     lc = [pos[0] / dz, pos[1] / dr]
     return lc
@@ -31,9 +30,13 @@ cdef Pos(lc):
     pos = [lc[0] * dz, lc[1] * dr]
     return pos
 
-cdef R(j):
+@cython.wraparound(False)
+@cython.cdivision(True)
+cdef  inline double R(double j) noexcept:
     return j * dr
 
+@cython.wraparound(False)
+@cython.cdivision(True)
 cdef inline double gather(double[:, :] data, double lc0, double lc1) noexcept:
     cdef int i = <int> lc0
     cdef int j = <int> lc1
@@ -46,6 +49,8 @@ cdef inline double gather(double[:, :] data, double lc0, double lc1) noexcept:
             data[i + 1, j + 1] * di * dj
     )
 
+@cython.wraparound(False)
+@cython.cdivision(True)
 cdef inline void scatter(double[:, :] data, double lc0, double lc1, double value) noexcept:
     cdef int i = <int> lc0
     cdef int j = <int> lc1
@@ -82,51 +87,54 @@ cdef sampleIsotropicVel(vth):
     vel = (n[0] * vm[0], n[1] * vm[1], n[2] * vm[2])
     return vel
 
-cdef inline double[:, :] solvePotential(double[:, :] phi, int max_it=100) noexcept:
-    # make copy of dirichlet nodes
-    cdef double[:, :] P = numpy.copy(phi)
-
-    cdef double[:, :] g = numpy.zeros_like(phi)
+# simple Jacobian solver, does not do any convergence checking
+@cython.wraparound(False)
+@cython.cdivision(True)
+cdef inline void solvePotential(double[:, :] phi, int max_it=100) noexcept:
+    cdef int i, j, it
     cdef double dz2 = dz * dz
     cdef double dr2 = dr * dr
 
-    # rho_e = numpy.zeros_like(phi)
+    cdef double[:, :] cell_type_v = cell_type
+    cdef double[:, :] rho_i_v = rho_i
+    cdef double[:, :] P = numpy.copy(phi)
+    cdef double[:, :] g = numpy.empty_like(phi)
 
     # set radia
-    cdef double[:, :] r = numpy.zeros_like(phi)
-    cdef int i, j
+    cdef double[:] r = numpy.empty((nr,))
+    for j in range(nr):
+        r[j] = R(j)
+
+    # compute electron term
+    cdef double[:, :] b = numpy.zeros_like(phi)
     for i in range(nz):
         for j in range(nr):
-            r[i][j] = R(j)
+            if cell_type_v[i, j] > 0: continue
+            b[i, j] = (rho_i_v[i, j] - QE * n0 * exp((P[i, j] - phi0) / kTe)) / EPS0
 
-    cdef int it
-    cdef double[:, :] rho_e, b
-    cdef double denom
+    cdef double denom = 2.0 / dr2 + 2.0 / dz2
     for it in range(max_it):
-        # compute electron term
-        rho_e = QE * n0 * numpy.exp(numpy.subtract(P, phi0) / kTe)
-        b = numpy.where(numpy.asarray(cell_type) <= 0, numpy.subtract(rho_i, rho_e) / EPS0, 0)
-
         # regular form inside
-        denom = 2.0 / dr2 + 2.0 / dz2
         for i in range(1, nz - 1):
             for j in range(1, nr - 1):
                 g[i, j] = (
                                   b[i, j] +
                                   (phi[i, j + 1] + phi[i, j - 1]) / dr2 +
-                                  (phi[i, j - 1] - phi[i, j + 1]) / (2 * dr * r[i, j]) +
+                                  (phi[i, j - 1] - phi[i, j + 1]) / (2 * dr * r[j]) +
                                   (phi[i + 1, j] + phi[i - 1, j]) / dz2
                           ) / denom
-        # neumann boundaries
-        g[0] = g[1]  # left
-        g[-1] = g[-2]  # right
-        g[:, -1] = g[:, -2]  # top
-        g[:, 0] = g[:, 1]
+            # neumann boundaries (L+R)
+            g[i, 0] = g[i, 1]
+            g[i, nr - 1] = g[i, nr - 2]
 
-        # dirichlet nodes
-        phi = numpy.where(numpy.asarray(cell_type) > 0, P, g)
+        # neumann boundaries (T+B)
+        for j in range(nr):
+            g[0, j] = g[1, j]
+            g[nz - 1, j] = g[nz - 2, j]
 
-    return phi
+        for i in range(nz):
+            for j in range(nr):
+                phi[i, j] = P[i, j] if cell_type_v[i, j] > 0 else g[i, j]
 
 # computes electric field
 cdef computeEF(phi, efz, efr):
@@ -165,24 +173,24 @@ cdef bool draw_plot = False
 # allocate memory space
 cdef int nr = 12
 cdef int nz = nr * 3
-cdef double dz = 1e-3
-cdef double dr = 1e-3
-cdef double dt = 5e-9
+cdef const double dz = 1e-3
+cdef const double dr = 1e-3
+cdef const double dt = 5e-9
 
-cdef double QE = 1.602e-19
-cdef double AMU = 1.661e-27
-cdef double EPS0 = 8.854e-12
+cdef const double QE = 1.602e-19
+cdef const double AMU = 1.661e-27
+cdef const double EPS0 = 8.854e-12
 
 cdef double charge = QE
 cdef double m = 40 * AMU  # argon ions
 cdef double qm = charge / m
-cdef int spwt = 50
+cdef const int spwt = 50
 
 # solver parameters
 cdef double n0 = 1e12
-cdef int phi0 = 100
-cdef int phi1 = 0
-cdef int kTe = 5
+cdef const int phi0 = 100
+cdef const int phi1 = 0
+cdef const int kTe = 5
 
 phi = numpy.zeros([nz, nr])
 efz = numpy.zeros([nz, nr])
@@ -202,10 +210,7 @@ cdef int tube_i_max, tube_j_max
 [tube_i_max, tube_j_max] = map(int, XtoL(numpy.array([4 * dz, tube1_radius])))
 
 cpdef reassign_globals(NR=12):
-    global nr, nz, dz, dr, dt
-    global QE, AMU, EPS0
-    global charge, m, qm, spwt
-    global n0, phi0, phi1, kTe
+    global nr, nz, n0
     global phi, efz, efr, rho_i, den
     global cell_type, tube_i_max, tube_j_max
     global tube1_radius, tube1_length, tube1_aperture_rad
@@ -213,24 +218,7 @@ cpdef reassign_globals(NR=12):
 
     nr = NR
     nz = nr * 3
-    dz = 1e-3
-    dr = 1e-3
-    dt = 5e-9
-
-    QE = 1.602e-19
-    AMU = 1.661e-27
-    EPS0 = 8.854e-12
-
-    charge = QE
-    m = 40 * AMU  # argon ions
-    qm = charge / m
-    spwt = 50
-
-    # solver parameters
     n0 = 1e12
-    phi0 = 100
-    phi1 = 0
-    kTe = 5
 
     phi = numpy.zeros([nz, nr])
     efz = numpy.zeros([nz, nr])
@@ -308,7 +296,7 @@ cpdef main():
     if draw_plot: sub = (pl.subplot(211), pl.subplot(212))
 
     # solve potential
-    phi = solvePotential(phi, 1000)
+    solvePotential(phi, 1000)
     computeEF(phi, efz, efr)
 
     # ----------- MAIN LOOP --------------------------------------------
@@ -403,7 +391,7 @@ cpdef main():
         rho_i = charge * den
 
         # update potential
-        phi = numpy.asarray(solvePotential(phi))
+        solvePotential(phi)
 
         # compute electric field
         computeEF(phi, efz, efr)

@@ -1,5 +1,6 @@
 import json
 import random
+from random import seed
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,6 +8,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from datetime import datetime
 from timeit import default_timer as timer
+
 
 def validate(base, changed, nr=12, seed=42):
     base.reassign_globals(nr)
@@ -23,7 +25,7 @@ def validate(base, changed, nr=12, seed=42):
 
     np.testing.assert_equal(den1, den2)
     np.testing.assert_equal(phi1, phi2)
-    print("Valid!")
+    print("Valid for nr:", nr)
 
 
 def benchmark_run(module, nr, args=(), n=10):
@@ -79,11 +81,14 @@ def benchmark(modules, nrss, args, names, n=10, save=True):
 
     return data
 
+
 import rz_pic
 import rz_pic_C2
 
-#rz_pic_C2.main()
+# seed(42)
+# rz_pic.main()
 validate(rz_pic_C2, rz_pic, 8)
+validate(rz_pic_C2, rz_pic, 10)
 
 """nrs = [8, 12, 14]
 data = benchmark([rz_pic_C2, rz_pic], [nrs, nrs], [(), ()], ["cython", "base"], 3)
