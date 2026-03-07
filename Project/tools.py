@@ -21,8 +21,8 @@ def validate(base, changed, nr=12, seed=42):
     den2 = changed.den
     phi2 = changed.phi
 
-    np.testing.assert_allclose(den1, den2)
-    np.testing.assert_allclose(phi1, phi2)
+    np.testing.assert_equal(den1, den2)
+    np.testing.assert_equal(phi1, phi2)
     print("Valid!")
 
 
@@ -85,6 +85,6 @@ import rz_pic_C2
 #rz_pic_C2.main()
 validate(rz_pic_C2, rz_pic, 8)
 
-nrs = [8, 12, 14]
+"""nrs = [8, 12, 14]
 data = benchmark([rz_pic_C2, rz_pic], [nrs, nrs], [(), ()], ["cython", "base"], 3)
-plot(data)
+plot(data)"""
