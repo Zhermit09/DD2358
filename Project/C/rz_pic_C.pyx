@@ -42,12 +42,19 @@ cdef inline double gather(double[:, :] data, double lc0, double lc1) noexcept:
     cdef int j = <int> lc1
     cdef double di = lc0 - i
     cdef double dj = lc1 - j
-    return (
-            data[i, j] * (1 - di) * (1 - dj) +
-            data[i + 1, j] * di * (1 - dj) +
-            data[i, j + 1] * (1 - di) * dj +
-            data[i + 1, j + 1] * di * dj
-    )
+
+    cdef int ip = i + 1
+    cdef int jp = j + 1
+
+    cdef double a = data[i, j]
+    cdef double b = data[ip, j]
+    cdef double c = data[i, jp]
+    cdef double d = data[ip, jp]
+
+    cdef double x0 = a + di * (b - a)
+    cdef double x1 = c + di * (d - c)
+
+    return x0 + dj * (x1 - x0)
 
 @cython.wraparound(False)
 @cython.cdivision(True)
@@ -57,10 +64,19 @@ cdef inline void scatter(double[:, :] data, double lc0, double lc1, double value
     cdef double di = lc0 - i
     cdef double dj = lc1 - j
 
-    data[i, j] += (1 - di) * (1 - dj) * value
-    data[i + 1, j] += di * (1 - dj) * value
-    data[i, j + 1] += (1 - di) * dj * value
-    data[i + 1, j + 1] += di * dj * value
+    cdef int  ip = i + 1
+    cdef int  jp = j + 1
+
+    cdef double  di1 = 1 - di
+    cdef double  dj1 = 1 - dj
+
+    cdef double v1 = dj1 * value
+    cdef double v2 = dj * value
+
+    data[i, j] += di1 * v1
+    data[ip, j] += di * v1
+    data[i, jp] += di1 * v2
+    data[ip, jp] += di * v2
 
 
 # particle definition
@@ -94,6 +110,8 @@ cdef inline void solvePotential(double[:, :] phi, int max_it=100) noexcept:
     cdef int i, j, it
     cdef double dz2 = dz * dz
     cdef double dr2 = dr * dr
+    cdef double dr_x2 = 2 * dr
+    cdef double denom = 2.0 / dr2 + 2.0 / dz2
 
     cdef double[:, :] cell_type_v = cell_type
     cdef double[:, :] rho_i_v = rho_i
@@ -103,7 +121,7 @@ cdef inline void solvePotential(double[:, :] phi, int max_it=100) noexcept:
     # set radia
     cdef double[:] r = numpy.empty((nr,))
     for j in range(nr):
-        r[j] = R(j)
+        r[j] = dr_x2 * R(j)
 
     # compute electron term
     cdef double[:, :] b = numpy.zeros_like(phi)
@@ -112,16 +130,20 @@ cdef inline void solvePotential(double[:, :] phi, int max_it=100) noexcept:
             if cell_type_v[i, j] > 0: continue
             b[i, j] = (rho_i_v[i, j] - QE * n0 * exp((P[i, j] - phi0) / kTe)) / EPS0
 
-    cdef double denom = 2.0 / dr2 + 2.0 / dz2
+    cdef double phi_ijp, phi_ijm, phi_ipj, phi_imj
     for it in range(max_it):
         # regular form inside
         for i in range(1, nz - 1):
             for j in range(1, nr - 1):
+                phi_ijp = phi[i, j + 1]
+                phi_ijm = phi[i, j - 1]
+                phi_ipj = phi[i + 1, j]
+                phi_imj = phi[i - 1, j]
                 g[i, j] = (
                                   b[i, j] +
-                                  (phi[i, j + 1] + phi[i, j - 1]) / dr2 +
-                                  (phi[i, j - 1] - phi[i, j + 1]) / (2 * dr * r[j]) +
-                                  (phi[i + 1, j] + phi[i - 1, j]) / dz2
+                                  (phi_ijm + phi_ijp) / dr2 +
+                                  (phi_ijm - phi_ijp) / r[j] +
+                                  (phi_ipj + phi_imj) / dz2
                           ) / denom
             # neumann boundaries (L+R)
             g[i, 0] = g[i, 1]

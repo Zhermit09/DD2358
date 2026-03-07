@@ -23,8 +23,8 @@ def validate(base, changed, nr=12, seed=42):
     den2 = changed.den
     phi2 = changed.phi
 
-    np.testing.assert_equal(den1, den2)
-    np.testing.assert_equal(phi1, phi2)
+    np.testing.assert_allclose(den1, den2)
+    np.testing.assert_allclose(phi1, phi2)
     print("Valid for nr:", nr)
 
 
@@ -62,6 +62,7 @@ def plot(data):
 
 
 def benchmark(modules, nrss, args, names, n=10, save=True):
+    seed()
     data = []
     for module, nrs, arg, name in zip(modules, nrss, args, names):
         avgs, stds = [], []
@@ -75,8 +76,16 @@ def benchmark(modules, nrss, args, names, n=10, save=True):
     if save:
         path = Path("benchmark/data.json")
         path.parent.mkdir(parents=True, exist_ok=True)
+        JSON = {}
+        try:
+            with open(path, "r") as f:
+                JSON = json.load(f)
+        except Exception:
+            pass
+
         with open(path, "w") as file:
-            json.dump({"_".join(names): data}, file, indent=3)
+            JSON["_".join(names)] = data
+            json.dump(JSON, file, indent=3)
         print("Data Saved\n")
 
     return data
@@ -84,12 +93,13 @@ def benchmark(modules, nrss, args, names, n=10, save=True):
 
 import rz_pic
 import C.rz_pic_C as rz_pic_C
+import GPU.rz_pic_GPU as rz_pic_GPU
 
 # seed(42)
-# rz_pic.main()
-#validate(rz_pic_C, rz_pic, 8)
-#validate(rz_pic_C, rz_pic, 10)
+# rz_pic_GPU.main()
+validate(rz_pic_GPU, rz_pic, 8)
+validate(rz_pic_GPU, rz_pic, 10)
 
 nrs = [8, 12, 14]
-data = benchmark([rz_pic_C, rz_pic], [nrs, nrs], [(), ()], ["cython", "base"], 3)
+data = benchmark([rz_pic_GPU, rz_pic], [nrs, nrs], [(), ()], ["GPU4", "base"], 3)
 plot(data)
