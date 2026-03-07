@@ -101,5 +101,5 @@ validate(rz_pic_GPU, rz_pic, 8)
 validate(rz_pic_GPU, rz_pic, 10)
 
 nrs = [8, 12, 14]
-data = benchmark([rz_pic_GPU, rz_pic], [nrs, nrs], [(), ()], ["GPU4", "base"], 3)
+data = benchmark([rz_pic_GPU, rz_pic], [nrs, nrs], [(), ()], ["GPU5", "base"], 3)
 plot(data)

@@ -10,9 +10,10 @@
 #
 # requires numpy, scipy, pylab, and mathplotlib
 
-import numpy
-import pylab as pl
 import math
+import numpy
+#import torch as th
+import pylab as pl
 from random import (seed, random)
 
 
@@ -103,21 +104,17 @@ def solvePotential(phi, max_it=100):
     dr_x2 = 2 * dr
     denom = 2.0 / dr2 + 2.0 / dz2
 
-    # make copy of dirichlet nodes
-    P = numpy.copy(phi)
     g = numpy.empty_like(phi)
     b = numpy.empty_like(phi)
     mask = cell_type <= 0
 
     # compute electron term
-    rho_e = QE * n0 * numpy.exp((P[mask] - phi0) / kTe)
+    rho_e = QE * n0 * numpy.exp((phi[mask] - phi0) / kTe)
     b[mask] = (rho_i[mask] - rho_e) / EPS0
 
     # set radia
     row = numpy.array([dr_x2 * R(j) for j in range(nr)])
     r = numpy.broadcast_to(row, (nz, nr))
-
-    mask_ij = mask[1:-1, 1:-1]
 
     g_ij = g[1:-1, 1:-1]
     b_ij = b[1:-1, 1:-1]
@@ -137,16 +134,13 @@ def solvePotential(phi, max_it=100):
     g_m2j = g[-2]
 
     for it in range(max_it):
-        phi_ijm_masked = phi_ijm[mask_ij]
-        phi_ijp_masked = phi_ijp[mask_ij]
-
         # regular form inside
-        g_ij[mask_ij] = (
-                                b_ij[mask_ij] +
-                                (phi_ijm_masked + phi_ijp_masked) / dr2 +
-                                (phi_ijm_masked - phi_ijp_masked) / r_ij[mask_ij] +
-                                (phi_ipj[mask_ij] + phi_imj[mask_ij]) / dz2
-                        ) / denom
+        g_ij[...] = (
+                            b_ij +
+                            (phi_ijm + phi_ijp) / dr2 +
+                            (phi_ijm - phi_ijp) / r_ij +
+                            (phi_ipj + phi_imj) / dz2
+                    ) / denom
 
         # neumann boundaries
         g_i0[...] = g_i1  # left
@@ -156,6 +150,7 @@ def solvePotential(phi, max_it=100):
 
         # dirichlet nodes
         phi[mask] = g[mask]
+
 
 
 # computes electric field
