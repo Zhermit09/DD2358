@@ -83,13 +83,13 @@ def benchmark(modules, nrss, args, names, n=10, save=True):
 
 
 import rz_pic
-import rz_pic_C2
+import C.rz_pic_C as rz_pic_C
 
 # seed(42)
 # rz_pic.main()
-validate(rz_pic_C2, rz_pic, 8)
-validate(rz_pic_C2, rz_pic, 10)
+#validate(rz_pic_C, rz_pic, 8)
+#validate(rz_pic_C, rz_pic, 10)
 
-"""nrs = [8, 12, 14]
-data = benchmark([rz_pic_C2, rz_pic], [nrs, nrs], [(), ()], ["cython", "base"], 3)
-plot(data)"""
+nrs = [8, 12, 14]
+data = benchmark([rz_pic_C, rz_pic], [nrs, nrs], [(), ()], ["cython", "base"], 3)
+plot(data)

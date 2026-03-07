@@ -5,7 +5,7 @@ import numpy
 extensions = [
     Extension(
         "*",
-        ["*.pyx"],
+        ["C/*.pyx"],
         include_dirs=[numpy.get_include()],
         extra_compile_args=["-O3"],   # compiler optimization
     ),
