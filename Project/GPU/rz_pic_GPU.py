@@ -12,7 +12,7 @@
 
 import math
 import numpy
-#import torch as th
+# import torch as th
 import pylab as pl
 from random import (seed, random)
 
@@ -47,6 +47,21 @@ def gather(data, lc0, lc1):
 
     x0 = a + di * (b - a)
     x1 = c + di * (d - c)
+
+    return x0 + dj * (x1 - x0)
+
+
+def gather2(data, lc0, lc1):
+    a = data[0: -1, 0:-1]
+    b = data[1:, 0:-1]
+    c = data[0: -1, 1:]
+    d = data[1:, 1:]
+
+    di = (lc0 - numpy.floor(lc0))[:, None]
+    dj = (lc1 - numpy.floor(lc1))[:, None]
+
+    x0 = a + di * (b - a)
+    x1 = c + dj * (d - c)
 
     return x0 + dj * (x1 - x0)
 
@@ -150,7 +165,6 @@ def solvePotential(phi, max_it=100):
 
         # dirichlet nodes
         phi[mask] = g[mask]
-
 
 
 # computes electric field
@@ -331,6 +345,9 @@ def main():
         k = 2e-10  # not a physical value
         dni = k * ne * na * dt
 
+        lc = numpy.full((nz - 1,), 0.5)
+        cell_volume = gather2(node_volume, lc, lc)[1: tube_i_max, 0:tube_j_max]
+
         # inject particles
         for i in range(1, tube_i_max):
             for j in range(0, tube_j_max):
@@ -338,11 +355,8 @@ def main():
                 # skip over solid cells
                 if cell_type[i][j] > 0: continue
 
-                # interpolate node volume to cell center to get cell volume
-                cell_volume = gather(node_volume, i + 0.5, j + 0.5)
-
                 # floating point production rate
-                mpf_new = dni * cell_volume / spwt + mpf_rem[i][j]
+                mpf_new = dni * cell_volume[i - 1, j] / spwt + mpf_rem[i][j]
 
                 # truncate down, adding randomness
                 mp_new = int(mpf_new + random())

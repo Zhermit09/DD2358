@@ -51,6 +51,10 @@ def gather(data, lc0, lc1):
     return x0 + dj * (x1 - x0)
 
 
+def gather2(data, lc0, lc1):
+    pass
+
+
 def scatter(data, lc0, lc1, value):
     i = int(lc0)
     j = int(lc1)
@@ -99,7 +103,7 @@ def sampleIsotropicVel(vth):
 
 # simple Jacobian solver, does not do any convergence checking
 def solvePotential(phi, max_it=100):
-    #device = th.device("cpu")
+    # device = th.device("cpu")
     phi_t = th.from_numpy(phi).cuda()
     cell_type_t = th.from_numpy(cell_type).cuda()
     rho_i_t = th.from_numpy(rho_i).cuda()
@@ -299,9 +303,9 @@ def main():
     pos_z = numpy.linspace(0, (nz - 1) * dz, nz)
 
     # solve potential
-    #print(type(phi))
+    # print(type(phi))
     phi = solvePotential(phi, 1000)
-    #print(type(phi))
+    # print(type(phi))
     computeEF(phi, efz, efr)
 
     # ----------- MAIN LOOP --------------------------------------------
@@ -315,7 +319,31 @@ def main():
         k = 2e-10  # not a physical value
         dni = k * ne * na * dt
 
-        # inject particles
+        a = node_volume[1: tube_i_max, 0:tube_j_max]
+        b = node_volume[2: tube_i_max + 1, 0:tube_j_max]
+        c = node_volume[1: tube_i_max, 1:tube_j_max + 1]
+        d = node_volume[2: tube_i_max + 1, 1:tube_j_max + 1]
+
+        di = 0.5
+        dj = 0.5
+
+        x0 = a + di * (b - a)
+        x1 = c + di * (d - c)
+        cv = x0 + dj * (x1 - x0)
+
+        new = dni * cv / spwt + mpf_rem[1: tube_i_max, 0:tube_j_max]
+        rand = numpy.array([[random() for _ in range(1, tube_i_max)] for _ in range(0, tube_j_max)])
+        _new = numpy.floor(new + rand)
+        mpf_rem -= _new
+
+        for (i, j), x in numpy.ndenumerate(_new):
+            i += 1
+            for p in range(x):
+                pos = Pos([i + random(), j + random()])
+                vel = sampleIsotropicVel(300)
+                particles.append(Particle(pos, vel))
+
+        """# inject particles
         for i in range(1, tube_i_max):
             for j in range(0, tube_j_max):
 
@@ -338,7 +366,7 @@ def main():
                 for p in range(mp_new):
                     pos = Pos([i + random(), j + random()])
                     vel = sampleIsotropicVel(300)
-                    particles.append(Particle(pos, vel))
+                    particles.append(Particle(pos, vel))"""
 
         # some arbitrary min value
         max_zvel = 0
