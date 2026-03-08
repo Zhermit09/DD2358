@@ -362,11 +362,9 @@ def main():
         # some arbitrary min value
         max_zvel = 0
 
-
-
+        POS = [p.pos for p in particles]
 
         if particles:
-            POS = [p.pos for p in particles]
             pos = numpy.array(POS, ndmin=2)
             pos_t = th.from_numpy(pos).to(device)
             Lc0, Lc1 = XtoL_vec(pos_t)  # shape (n,2)
@@ -401,7 +399,6 @@ def main():
 
         # compute density
         if particles:
-            POS = [p.pos for p in particles]
             pos = numpy.array(POS, ndmin=2)
             pos_t = th.from_numpy(pos).to(device)
             Lc0, Lc1 = XtoL_vec(pos_t)  # shape (n,2)
