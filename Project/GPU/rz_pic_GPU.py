@@ -51,7 +51,7 @@ def gather(data, lc0, lc1):
     return x0 + dj * (x1 - x0)
 
 
-def gather2(data, lc0, lc1):
+def gather_init(data, lc0, lc1):
     a = data[0: -1, 0:-1]
     b = data[1:, 0:-1]
     c = data[0: -1, 1:]
@@ -335,7 +335,7 @@ def main():
     computeEF(phi, efz, efr)
 
     lc = numpy.full((nz - 1, nr - 1), 0.5)
-    cell_volume = gather2(node_volume, lc, lc)[1: tube_i_max, 0:tube_j_max]
+    cell_volume = gather_init(node_volume, lc, lc)[1: tube_i_max, 0:tube_j_max]
     # ----------- MAIN LOOP --------------------------------------------
     for ts in range(0, 1000 + 1):
 
@@ -371,24 +371,6 @@ def main():
 
         # some arbitrary min value
         max_zvel = 0
-
-        lc0, lc1 = zip(*(XtoL(part.pos) for part in particles))
-        lc0 = numpy.array(lc0)
-        lc1 = numpy.array(lc1)
-
-        I = numpy.floor(lc0).astype(int)
-        J = numpy.floor(lc1).astype(int)
-
-        DI = lc0 - I
-        DJ = lc1 - J
-
-        di = numpy.zeros((nz - 1, nr - 1))
-        dj = numpy.zeros((nz - 1, nr - 1))
-
-        di[I, J] = DI
-        dj[I, J] = DJ
-        z = gather2(efz, di, dj)
-        r = gather2(efr, di, dj)
 
         # push particles
         for part in particles:

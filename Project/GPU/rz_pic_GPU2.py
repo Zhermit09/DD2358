@@ -51,8 +51,19 @@ def gather(data, lc0, lc1):
     return x0 + dj * (x1 - x0)
 
 
-def gather2(data, lc0, lc1):
-    pass
+def gather_init(data, lc0, lc1):
+    a = data[0: -1, 0:-1]
+    b = data[1:, 0:-1]
+    c = data[0: -1, 1:]
+    d = data[1:, 1:]
+
+    di = lc0
+    dj = lc1
+
+    x0 = a + di * (b - a)
+    x1 = c + dj * (d - c)
+
+    return x0 + dj * (x1 - x0)
 
 
 def scatter(data, lc0, lc1, value):
@@ -308,6 +319,8 @@ def main():
     # print(type(phi))
     computeEF(phi, efz, efr)
 
+    lc = numpy.full((nz - 1, nr - 1), 0.5)
+    cell_volume = gather_init(node_volume, lc, lc)[1: tube_i_max, 0:tube_j_max]
     # ----------- MAIN LOOP --------------------------------------------
     for ts in range(0, 1000 + 1):
 
@@ -319,31 +332,7 @@ def main():
         k = 2e-10  # not a physical value
         dni = k * ne * na * dt
 
-        a = node_volume[1: tube_i_max, 0:tube_j_max]
-        b = node_volume[2: tube_i_max + 1, 0:tube_j_max]
-        c = node_volume[1: tube_i_max, 1:tube_j_max + 1]
-        d = node_volume[2: tube_i_max + 1, 1:tube_j_max + 1]
-
-        di = 0.5
-        dj = 0.5
-
-        x0 = a + di * (b - a)
-        x1 = c + di * (d - c)
-        cv = x0 + dj * (x1 - x0)
-
-        new = dni * cv / spwt + mpf_rem[1: tube_i_max, 0:tube_j_max]
-        rand = numpy.array([[random() for _ in range(1, tube_i_max)] for _ in range(0, tube_j_max)])
-        _new = numpy.floor(new + rand)
-        mpf_rem -= _new
-
-        for (i, j), x in numpy.ndenumerate(_new):
-            i += 1
-            for p in range(x):
-                pos = Pos([i + random(), j + random()])
-                vel = sampleIsotropicVel(300)
-                particles.append(Particle(pos, vel))
-
-        """# inject particles
+        # inject particles
         for i in range(1, tube_i_max):
             for j in range(0, tube_j_max):
 
@@ -351,10 +340,10 @@ def main():
                 if cell_type[i][j] > 0: continue
 
                 # interpolate node volume to cell center to get cell volume
-                cell_volume = gather(node_volume, i + 0.5, j + 0.5)
+                # cell_volume = gather(node_volume, i + 0.5, j + 0.5)
 
                 # floating point production rate
-                mpf_new = dni * cell_volume / spwt + mpf_rem[i][j]
+                mpf_new = dni * cell_volume[i - 1, j] / spwt + mpf_rem[i][j]
 
                 # truncate down, adding randomness
                 mp_new = int(mpf_new + random())
@@ -366,7 +355,7 @@ def main():
                 for p in range(mp_new):
                     pos = Pos([i + random(), j + random()])
                     vel = sampleIsotropicVel(300)
-                    particles.append(Particle(pos, vel))"""
+                    particles.append(Particle(pos, vel))
 
         # some arbitrary min value
         max_zvel = 0
