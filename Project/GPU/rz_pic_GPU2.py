@@ -37,41 +37,6 @@ def R(j):
     return j * dr
 
 
-"""def gather(data, lc0, lc1):
-    i = int(lc0)
-    j = int(lc1)
-    di = lc0 - i
-    dj = lc1 - j
-
-    ip = i + 1
-    jp = j + 1
-
-    a = data[i, j]
-    b = data[ip, j]
-    c = data[i, jp]
-    d = data[ip, jp]
-
-    x0 = a + di * (b - a)
-    x1 = c + di * (d - c)
-
-    return x0 + dj * (x1 - x0)
-
-
-def gather_init(data, lc0, lc1):
-    a = data[0: -1, 0:-1]
-    b = data[1:, 0:-1]
-    c = data[0: -1, 1:]
-    d = data[1:, 1:]
-
-    di = lc0
-    dj = lc1
-
-    x0 = a + di * (b - a)
-    x1 = c + dj * (d - c)
-
-    return x0 + dj * (x1 - x0)"""
-
-
 def gather(data, lc0, lc1):
     i = lc0.long()
     j = lc1.long()
@@ -94,28 +59,7 @@ def gather(data, lc0, lc1):
 
 
 def scatter(data, lc0, lc1, value):
-    i = int(lc0)
-    j = int(lc1)
-
-    di = lc0 - i
-    dj = lc1 - j
-
-    ip = i + 1
-    jp = j + 1
-
-    di1 = 1 - di
-    dj1 = 1 - dj
-
-    v1 = dj1 * value
-    v2 = dj * value
-
-    data[i, j] += di1 * v1
-    data[ip, j] += di * v1
-    data[i, jp] += di1 * v2
-    data[ip, jp] += di * v2
-
-
-def scatter_vec(data, lc0, lc1, value):
+    data_t = th.from_numpy(data).to(device)
     i = lc0.long()
     j = lc1.long()
 
@@ -141,7 +85,8 @@ def scatter_vec(data, lc0, lc1, value):
         di * v2
     ])
 
-    data.index_put_((idx_i, idx_j), vals, accumulate=True)
+    data_t.index_put_((idx_i, idx_j), vals, accumulate=True)
+    return data_t.cpu().numpy()
 
 
 # particle definition
@@ -244,7 +189,7 @@ def computeEF(phi, efz, efr):
 
 
 draw_plot = False
-device = "cpu"
+device = "cuda"
 # allocate memory space
 nr = 6
 nz = nr * 3
@@ -323,7 +268,7 @@ def main():
     # ---------- INITIALIZATION ----------------------------------------
 
     # pl.close('all')
-    #seed(41)
+    # seed(41)
 
     for i in range(0, nz):
         for j in range(0, nr):
@@ -371,15 +316,9 @@ def main():
     pos_z = numpy.linspace(0, (nz - 1) * dz, nz)
 
     # solve potential
-    # print(type(phi))
     phi = solvePotential(phi, 1000)
-    # print(type(phi))
     computeEF(phi, efz, efr)
 
-    # lc = numpy.full((nz - 1, nr - 1), 0.5)
-    # CV = gather_init(node_volume, lc, lc)[1: tube_i_max, 0:tube_j_max]
-
-    # lc0 = th.arange(1, tube_i_max, dtype=th.float64, device=device) + 0.5
     lc0 = th.tensor(1.5, dtype=th.float64, device=device)
     lc1 = th.arange(0, tube_j_max, dtype=th.float64, device=device) + 0.5
     cell_volume = gather(th.from_numpy(node_volume).to(device), lc0, lc1)
@@ -423,8 +362,12 @@ def main():
         # some arbitrary min value
         max_zvel = 0
 
+
+
+
         if particles:
-            pos = numpy.array([p.pos for p in particles], ndmin=2)
+            POS = [p.pos for p in particles]
+            pos = numpy.array(POS, ndmin=2)
             pos_t = th.from_numpy(pos).to(device)
             Lc0, Lc1 = XtoL_vec(pos_t)  # shape (n,2)
             z = gather(th.from_numpy(efz).to(device), Lc0, Lc1)
@@ -458,7 +401,8 @@ def main():
 
         # compute density
         if particles:
-            pos = numpy.array([p.pos for p in particles], ndmin=2)
+            POS = [p.pos for p in particles]
+            pos = numpy.array(POS, ndmin=2)
             pos_t = th.from_numpy(pos).to(device)
             Lc0, Lc1 = XtoL_vec(pos_t)  # shape (n,2)
             I = Lc0.long()
@@ -466,38 +410,11 @@ def main():
 
             cell_type_t = th.from_numpy(cell_type).to(device)
             mask = (I >= 0) & (I < nz - 1) & (J < nr - 1) & (cell_type_t[I, J] <= 0)
-            den2 = numpy.copy(den)
-            scatter_vec(th.from_numpy(den).to(device), Lc0[mask], Lc1[mask], spwt)
+            den = scatter(den, Lc0[mask], Lc1[mask], spwt)
             mask = mask.cpu().numpy()
             particles = [p for p, keep in zip(particles, mask) if keep]
 
-        """p = 0
-        np = len(particles)
-        while p < np:
 
-            part = particles[p]
-            lc0, lc1 = XtoL(part.pos)
-            i = int(lc0)
-            j = int(lc1)
-
-            if i < 0 or i >= nz - 1 or j >= nr - 1 or cell_type[i][j] > 0:
-                # replace current data with the last entry
-                particles[p] = particles[np - 1]
-                np -= 1
-                continue
-
-            scatter(den, lc0, lc1, spwt)
-            p += 1
-
-        # resize particle array
-        particles = particles[0:np]
-
-
-        if particles:
-            if not numpy.array_equal(particles, particles2):
-                print("fuck")
-            if not numpy.allclose(den, den2):
-                print("fuck2")"""
 
         # divide by node volume
         den /= node_volume
@@ -511,8 +428,8 @@ def main():
 
         # recompute reference density
         n0 = den.max()
-    print()
 
 
 if __name__ == "__main__":
+    print("cock")
     main()
