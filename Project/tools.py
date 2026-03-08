@@ -92,8 +92,8 @@ def benchmark(modules, nrss, args, names, n=10, save=True):
 
 
 import rz_pic
-import C.rz_pic_C as rz_pic_C
-import GPU.rz_pic_GPU as rz_pic_GPU
+#import C.rz_pic_C as rz_pic_C
+import GPU.rz_pic_GPU2 as rz_pic_GPU
 
 # seed(42)
 # rz_pic_GPU.main()
@@ -101,5 +101,5 @@ validate(rz_pic_GPU, rz_pic, 8)
 validate(rz_pic_GPU, rz_pic, 10)
 
 nrs = [8, 12, 14]
-data = benchmark([rz_pic_GPU, rz_pic], [nrs, nrs], [(), ()], ["GPU5", "base"], 3)
-plot(data)
+#data = benchmark([rz_pic_GPU, rz_pic], [nrs, nrs], [(), ()], ["GPU5", "base"], 3)
+#plot(data)

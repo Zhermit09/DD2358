@@ -12,8 +12,8 @@
 
 import math
 import numpy
-#import torch as th
-import pylab as pl
+import torch as th
+# import pylab as pl
 from random import (seed, random)
 
 
@@ -99,30 +99,35 @@ def sampleIsotropicVel(vth):
 
 # simple Jacobian solver, does not do any convergence checking
 def solvePotential(phi, max_it=100):
+    #device = th.device("cpu")
+    phi_t = th.from_numpy(phi).cuda()
+    cell_type_t = th.from_numpy(cell_type).cuda()
+    rho_i_t = th.from_numpy(rho_i).cuda()
+
     dz2 = dz * dz
     dr2 = dr * dr
     dr_x2 = 2 * dr
     denom = 2.0 / dr2 + 2.0 / dz2
 
-    g = numpy.empty_like(phi)
-    b = numpy.empty_like(phi)
-    mask = cell_type <= 0
+    g = th.empty_like(phi_t, dtype=th.float64)
+    b = th.empty_like(phi_t, dtype=th.float64)
+    mask = cell_type_t <= 0
 
     # compute electron term
-    rho_e = QE * n0 * numpy.exp((phi[mask] - phi0) / kTe)
-    b[mask] = (rho_i[mask] - rho_e) / EPS0
+    rho_e = QE * n0 * th.exp((phi_t[mask] - phi0) / kTe)
+    b[mask] = (rho_i_t[mask] - rho_e) / EPS0
 
     # set radia
-    row = numpy.array([dr_x2 * R(j) for j in range(nr)])
-    r = numpy.broadcast_to(row, (nz, nr))
+    row = th.tensor([dr_x2 * R(j) for j in range(nr)], dtype=th.float64, device=th.device("cuda"))
+    r = row.unsqueeze(0).expand(nz, nr)
 
     g_ij = g[1:-1, 1:-1]
     b_ij = b[1:-1, 1:-1]
     r_ij = r[1:-1, 1:-1]
-    phi_ijp = phi[1:-1, 2:]
-    phi_ijm = phi[1:-1, :-2]
-    phi_ipj = phi[2:, 1:-1]
-    phi_imj = phi[:-2, 1:-1]
+    phi_ijp = phi_t[1:-1, 2:]
+    phi_ijm = phi_t[1:-1, :-2]
+    phi_ipj = phi_t[2:, 1:-1]
+    phi_imj = phi_t[:-2, 1:-1]
 
     g_i0 = g[:, 0]
     g_i1 = g[:, 1]
@@ -149,8 +154,9 @@ def solvePotential(phi, max_it=100):
         g_m1j[...] = g_m2j  # bottom
 
         # dirichlet nodes
-        phi[mask] = g[mask]
+        phi_t[mask] = g[mask]
 
+    return phi_t.cpu().numpy()
 
 
 # computes electric field
@@ -166,31 +172,9 @@ def computeEF(phi, efz, efr):
     efr[:, -1] = (phi[:, -2] - phi[:, -1]) / dr
 
 
-def plot(ax, data, pos_z, pos_r, scatter=False):
-    pl.sca(ax)
-    pl.cla()
-    cf = pl.contourf(pos_z, pos_r, numpy.transpose(data), 8, alpha=.75, cmap='jet')
-    # cf = pl.pcolormesh(pos_z, pos_r, numpy.transpose(data))
-    if scatter:
-        # ax.hold(True);
-        (ZZ, RR) = pl.meshgrid(pos_z, pos_r)
-        ax.scatter(ZZ, RR, c=numpy.transpose(cell_type), cmap='jet')
-    ax.set_yticks(pos_r)
-    ax.set_xticks(pos_z)
-    ax.xaxis.set_ticklabels([])
-    ax.yaxis.set_ticklabels([])
-    pl.xlim(min(pos_z), max(pos_z))
-    pl.ylim(min(pos_r), max(pos_r))
-    ax.grid(True, which='both', color='k', linestyle='-')
-    ax.set_aspect('equal', adjustable='box')
-
-
-#  pl.colorbar(cf,ax=pl.gca(),orientation='horizontal',shrink=0.75, pad=0.01)
-
 draw_plot = False
-
 # allocate memory space
-nr = 12
+nr = 6
 nz = nr * 3
 dz = 1e-3
 dr = 1e-3
@@ -313,11 +297,11 @@ def main():
     # positions for plotting
     pos_r = numpy.linspace(0, (nr - 1) * dr, nr)
     pos_z = numpy.linspace(0, (nz - 1) * dz, nz)
-    # fig1 = pl.figure(num=None, figsize=(10, 10), dpi=80, facecolor='w', edgecolor='k')
-    if draw_plot: sub = (pl.subplot(211), pl.subplot(212))
 
     # solve potential
-    solvePotential(phi, 1000)
+    #print(type(phi))
+    phi = solvePotential(phi, 1000)
+    #print(type(phi))
     computeEF(phi, efz, efr)
 
     # ----------- MAIN LOOP --------------------------------------------
@@ -412,35 +396,13 @@ def main():
         rho_i = charge * den
 
         # update potential
-        solvePotential(phi)
+        phi = solvePotential(phi)
 
         # compute electric field
         computeEF(phi, efz, efr)
 
         # recompute reference density
         n0 = den.max()
-
-        if draw_plot and ts % 10 == 0:
-            # print("ts: %d, np: %d, phi range: %.2g:%.2g, max_den: %.3g, max_zvel: %.f" % (ts, len(particles), phi.min(),
-            #                                                                              phi.max(), n0, max_zvel))
-
-            # sub = pl.subplot(111,aspect='equal')
-
-            # sub[0].hold(False)
-            plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=False)
-            plot(sub[1], phi, pos_z, pos_r)
-            pl.draw()
-            pl.pause(1e-4)  # allow for repaint
-
-    # ----------- END OF MAIN LOOP ------------------------
-    if draw_plot:
-        plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=False)
-        plot(sub[1], phi, pos_z, pos_r)
-        # Q = pl.quiver(pos_z, pos_r, numpy.transpose(efz), numpy.transpose(efr),units='xy')
-        pl.draw()
-
-        # this will block execution until figure is closed
-        pl.show()
 
 
 if __name__ == "__main__":
