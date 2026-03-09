@@ -12,14 +12,20 @@
 
 import math
 import numpy
-# import torch as th
-import pylab as pl
+import torch as th
+# import pylab as pl
 from random import (seed, random)
 
 
 def XtoL(pos):
     lc = [pos[0] / dz, pos[1] / dr]
     return lc
+
+
+def XtoL_vec(pos):
+    lc0 = pos[:, 0] / dz
+    lc1 = pos[:, 1] / dr
+    return lc0, lc1
 
 
 def Pos(lc):
@@ -32,8 +38,9 @@ def R(j):
 
 
 def gather(data, lc0, lc1):
-    i = int(lc0)
-    j = int(lc1)
+    i = lc0.long()
+    j = lc1.long()
+
     di = lc0 - i
     dj = lc1 - j
 
@@ -48,27 +55,14 @@ def gather(data, lc0, lc1):
     x0 = a + di * (b - a)
     x1 = c + di * (d - c)
 
-    return x0 + dj * (x1 - x0)
-
-
-def gather_init(data, lc0, lc1):
-    a = data[0: -1, 0:-1]
-    b = data[1:, 0:-1]
-    c = data[0: -1, 1:]
-    d = data[1:, 1:]
-
-    di = lc0
-    dj = lc1
-
-    x0 = a + di * (b - a)
-    x1 = c + dj * (d - c)
-
-    return x0 + dj * (x1 - x0)
+    return (x0 + dj * (x1 - x0)).cpu().numpy()
 
 
 def scatter(data, lc0, lc1, value):
-    i = int(lc0)
-    j = int(lc1)
+    data_t = th.from_numpy(data).to(device)
+    i = lc0.long()
+    j = lc1.long()
+
     di = lc0 - i
     dj = lc1 - j
 
@@ -81,10 +75,18 @@ def scatter(data, lc0, lc1, value):
     v1 = dj1 * value
     v2 = dj * value
 
-    data[i, j] += di1 * v1
-    data[ip, j] += di * v1
-    data[i, jp] += di1 * v2
-    data[ip, jp] += di * v2
+    idx_i = th.cat([i, ip, i, ip])
+    idx_j = th.cat([j, j, jp, jp])
+
+    vals = th.cat([
+        di1 * v1,
+        di * v1,
+        di1 * v2,
+        di * v2
+    ])
+
+    data_t.index_put_((idx_i, idx_j), vals, accumulate=True)
+    return data_t.cpu().numpy()
 
 
 # particle definition
@@ -114,30 +116,33 @@ def sampleIsotropicVel(vth):
 
 # simple Jacobian solver, does not do any convergence checking
 def solvePotential(phi, max_it=100):
+    phi_t = th.from_numpy(phi).to(device)
+    cell_type_t = th.from_numpy(cell_type).to(device)
+    rho_i_t = th.from_numpy(rho_i).to(device)
+
     dz2 = dz * dz
     dr2 = dr * dr
     dr_x2 = 2 * dr
     denom = 2.0 / dr2 + 2.0 / dz2
 
-    g = numpy.empty_like(phi)
-    b = numpy.empty_like(phi)
-    mask = cell_type <= 0
+    g = th.empty_like(phi_t, dtype=th.float64)
+    # b = th.empty_like(phi_t, dtype=th.float64)
 
     # compute electron term
-    rho_e = QE * n0 * numpy.exp((phi[mask] - phi0) / kTe)
-    b[mask] = (rho_i[mask] - rho_e) / EPS0
+    rho_e = QE * n0 * th.exp((phi_t - phi0) / kTe)
+    b = (rho_i_t - rho_e) / EPS0
 
     # set radia
-    row = numpy.array([dr_x2 * R(j) for j in range(nr)])
-    r = numpy.broadcast_to(row, (nz, nr))
+    row = dr_x2 * R(th.arange(nr, dtype=th.float64, device=device))
+    r = row.expand(nz, -1)
 
     g_ij = g[1:-1, 1:-1]
     b_ij = b[1:-1, 1:-1]
     r_ij = r[1:-1, 1:-1]
-    phi_ijp = phi[1:-1, 2:]
-    phi_ijm = phi[1:-1, :-2]
-    phi_ipj = phi[2:, 1:-1]
-    phi_imj = phi[:-2, 1:-1]
+    phi_ijp = phi_t[1:-1, 2:]
+    phi_ijm = phi_t[1:-1, :-2]
+    phi_ipj = phi_t[2:, 1:-1]
+    phi_imj = phi_t[:-2, 1:-1]
 
     g_i0 = g[:, 0]
     g_i1 = g[:, 1]
@@ -164,7 +169,10 @@ def solvePotential(phi, max_it=100):
         g_m1j[...] = g_m2j  # bottom
 
         # dirichlet nodes
-        phi[mask] = g[mask]
+        mask_float = (cell_type_t <= 0).to(phi_t.dtype)
+        phi_t.mul_(1 - mask_float).add_(g * mask_float)
+
+    return phi_t.cpu().numpy()
 
 
 # computes electric field
@@ -180,31 +188,10 @@ def computeEF(phi, efz, efr):
     efr[:, -1] = (phi[:, -2] - phi[:, -1]) / dr
 
 
-def plot(ax, data, pos_z, pos_r, scatter=False):
-    pl.sca(ax)
-    pl.cla()
-    cf = pl.contourf(pos_z, pos_r, numpy.transpose(data), 8, alpha=.75, cmap='jet')
-    # cf = pl.pcolormesh(pos_z, pos_r, numpy.transpose(data))
-    if scatter:
-        # ax.hold(True);
-        (ZZ, RR) = pl.meshgrid(pos_z, pos_r)
-        ax.scatter(ZZ, RR, c=numpy.transpose(cell_type), cmap='jet')
-    ax.set_yticks(pos_r)
-    ax.set_xticks(pos_z)
-    ax.xaxis.set_ticklabels([])
-    ax.yaxis.set_ticklabels([])
-    pl.xlim(min(pos_z), max(pos_z))
-    pl.ylim(min(pos_r), max(pos_r))
-    ax.grid(True, which='both', color='k', linestyle='-')
-    ax.set_aspect('equal', adjustable='box')
-
-
-#  pl.colorbar(cf,ax=pl.gca(),orientation='horizontal',shrink=0.75, pad=0.01)
-
 draw_plot = False
-
+device = "cuda"
 # allocate memory space
-nr = 12
+nr = 6
 nz = nr * 3
 dz = 1e-3
 dr = 1e-3
@@ -281,7 +268,7 @@ def main():
     # ---------- INITIALIZATION ----------------------------------------
 
     # pl.close('all')
-    # seed()
+    # seed(41)
 
     for i in range(0, nz):
         for j in range(0, nr):
@@ -327,15 +314,15 @@ def main():
     # positions for plotting
     pos_r = numpy.linspace(0, (nr - 1) * dr, nr)
     pos_z = numpy.linspace(0, (nz - 1) * dz, nz)
-    # fig1 = pl.figure(num=None, figsize=(10, 10), dpi=80, facecolor='w', edgecolor='k')
-    if draw_plot: sub = (pl.subplot(211), pl.subplot(212))
 
     # solve potential
-    solvePotential(phi, 1000)
+    phi = solvePotential(phi, 1000)
     computeEF(phi, efz, efr)
 
-    lc = numpy.full((nz - 1, nr - 1), 0.5)
-    cell_volume = gather_init(node_volume, lc, lc)[1: tube_i_max, 0:tube_j_max]
+    lc0 = th.tensor(1.5, dtype=th.float64, device=device)
+    lc1 = th.arange(0, tube_j_max, dtype=th.float64, device=device) + 0.5
+    cell_volume = gather(th.from_numpy(node_volume).to(device), lc0, lc1)
+
     # ----------- MAIN LOOP --------------------------------------------
     for ts in range(0, 1000 + 1):
 
@@ -354,8 +341,11 @@ def main():
                 # skip over solid cells
                 if cell_type[i][j] > 0: continue
 
+                # interpolate node volume to cell center to get cell volume
+                # cell_volume = gather(node_volume, i + 0.5, j + 0.5)
+
                 # floating point production rate
-                mpf_new = dni * cell_volume[i - 1, j] / spwt + mpf_rem[i][j]
+                mpf_new = dni * cell_volume[j] / spwt + mpf_rem[i][j]
 
                 # truncate down, adding randomness
                 mp_new = int(mpf_new + random())
@@ -372,13 +362,23 @@ def main():
         # some arbitrary min value
         max_zvel = 0
 
+        POS = [p.pos for p in particles]
+
+        if particles:
+            pos = numpy.array(POS, ndmin=2)
+            pos_t = th.from_numpy(pos).to(device)
+            Lc0, Lc1 = XtoL_vec(pos_t)  # shape (n,2)
+            z = gather(th.from_numpy(efz).to(device), Lc0, Lc1)
+            r = gather(th.from_numpy(efr).to(device), Lc0, Lc1)
+            part_ef = numpy.stack([z, r, numpy.zeros_like(z)], axis=1)
+
         # push particles
-        for part in particles:
+        for i, part in enumerate(particles):
             # gather electric field
-            lc0, lc1 = XtoL(part.pos)
-            part_ef = [gather(efz, lc0, lc1), gather(efr, lc0, lc1), 0]
+            # lc0, lc1 = XtoL(part.pos)
+            # part_ef = [gather(efz, lc0, lc1), gather(efr, lc0, lc1), 0]
             for dim in range(3):
-                part.vel[dim] += qm * part_ef[dim] * dt
+                part.vel[dim] += qm * part_ef[i][dim] * dt
                 part.pos[dim] += part.vel[dim] * dt
 
             # get new maximum velocity, for screen output
@@ -398,34 +398,27 @@ def main():
             part.vel[2] = v2
 
         # compute density
-        p = 0
-        np = len(particles)
-        while p < np:
+        if particles:
+            pos = numpy.array(POS, ndmin=2)
+            pos_t = th.from_numpy(pos).to(device)
+            Lc0, Lc1 = XtoL_vec(pos_t)  # shape (n,2)
+            I = Lc0.long()
+            J = Lc1.long()
 
-            part = particles[p]
-            lc0, lc1 = XtoL(part.pos)
-            i = int(lc0)
-            j = int(lc1)
+            cell_type_t = th.from_numpy(cell_type).to(device)
+            mask = (I >= 0) & (I < nz - 1) & (J < nr - 1) & (cell_type_t[I, J] <= 0)
+            den = scatter(den, Lc0[mask], Lc1[mask], spwt)
+            mask = mask.cpu().numpy()
+            particles = [p for p, keep in zip(particles, mask) if keep]
 
-            #
-            if i < 0 or i >= nz - 1 or j >= nr - 1 or cell_type[i][j] > 0:
-                # replace current data with the last entry
-                particles[p] = particles[np - 1]
-                np -= 1
-                continue
 
-            scatter(den, lc0, lc1, spwt)
-            p += 1
-
-        # resize particle array
-        particles = particles[0:np]
 
         # divide by node volume
         den /= node_volume
         rho_i = charge * den
 
         # update potential
-        solvePotential(phi)
+        phi = solvePotential(phi)
 
         # compute electric field
         computeEF(phi, efz, efr)
@@ -433,28 +426,7 @@ def main():
         # recompute reference density
         n0 = den.max()
 
-        if draw_plot and ts % 10 == 0:
-            # print("ts: %d, np: %d, phi range: %.2g:%.2g, max_den: %.3g, max_zvel: %.f" % (ts, len(particles), phi.min(),
-            #                                                                              phi.max(), n0, max_zvel))
-
-            # sub = pl.subplot(111,aspect='equal')
-
-            # sub[0].hold(False)
-            plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=False)
-            plot(sub[1], phi, pos_z, pos_r)
-            pl.draw()
-            pl.pause(1e-4)  # allow for repaint
-
-    # ----------- END OF MAIN LOOP ------------------------
-    if draw_plot:
-        plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=False)
-        plot(sub[1], phi, pos_z, pos_r)
-        # Q = pl.quiver(pos_z, pos_r, numpy.transpose(efz), numpy.transpose(efr),units='xy')
-        pl.draw()
-
-        # this will block execution until figure is closed
-        pl.show()
-
 
 if __name__ == "__main__":
+    print("cock")
     main()

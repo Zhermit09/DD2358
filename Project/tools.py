@@ -44,9 +44,15 @@ def benchmark_run(module, nr, args=(), n=10):
 
 
 def plot(data):
+    path = Path("benchmark")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    names = []
+
     plt.figure(figsize=(9, 5))
 
     for nrs, avgs, stds, name in data:
+        names.append(name)
+
         nrs = np.array(nrs)
         avgs = np.array(avgs)
         stds = np.array(stds)
@@ -58,6 +64,7 @@ def plot(data):
     plt.ylabel("Execution time (s)")
     plt.legend()
     plt.grid(True)
+    plt.savefig(path / f"{"_".join(names)}.pdf", bbox_inches="tight")
     plt.show()
 
 
@@ -92,15 +99,10 @@ def benchmark(modules, nrss, args, names, n=10, save=True):
 
 
 import rz_pic
-#import C.rz_pic_C as rz_pic_C
-import GPU.rz_pic_GPU2 as rz_pic_GPU2
+import C.rz_pic_C as rz_pic_C
+import GPU.rz_pic_GPU as rz_pic_GPU
 
-
-# seed(42)
-# rz_pic_GPU.main()
-validate(rz_pic_GPU2, rz_pic, 8)
-validate(rz_pic_GPU2, rz_pic, 10)
-
-nrs = [8, 12, 14, 23, 30]
-#data = benchmark([rz_pic_GPU2, rz_pic], [nrs, nrs], [(), ()], ["GPU5", "base"], 3)
-#plot(data)
+nrs = [8, 10, 12, 14, 18, 22, 26, 30]
+for nr in nrs: validate(rz_pic, rz_pic_C, nr)
+data = benchmark([rz_pic, rz_pic_C], [nrs, nrs], [(), ()], ["Python", "Cython"])
+plot(data)
