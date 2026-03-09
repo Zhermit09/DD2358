@@ -1,0 +1,151 @@
+========================================================================
+  RZ-PIC PROFILING REPORT  —  Serial vs Parallel  (1000 timesteps)
+========================================================================
+
+────────────────────────────────────────────────────────────────────────
+  Grid NR=12  NZ=36  (total nodes = 432)
+────────────────────────────────────────────────────────────────────────
+
+  [SERIAL]  top 8 by cumulative time
+  Total wall time: 7.41s
+    ncalls   cumtime(s)   percall(s)  function
+  --------  -----------  -----------  ----------------------------------
+         1        7.412        7.412  rz_pic.py:243(main)
+      1002        2.086        0.002  rz_pic.py:82(solvePotential)
+   1258442        1.852        0.000  rz_pic.py:33(gather)
+    618864        1.082        0.000  rz_pic.py:44(scatter)
+   2534902        0.169        0.000  {built-in method math.trunc}
+   1240424        0.163        0.000  rz_pic.py:19(XtoL)
+   1244771        0.092        0.000  {built-in method math.sqrt}
+    433728        0.022        0.000  rz_pic.py:29(R)
+
+  [PARALLEL]
+  Total wall time: 6.87s   (speedup: 1.08x)
+
+  Top 8 by cumtime (IPC wait dominates because workers
+  run in sub-processes invisible to cProfile):
+    ncalls   cumtime(s)   percall(s)  function
+  --------  -----------  -----------  ----------------------------------
+      2233       11.579        0.005  pool.py:500(_wait_for_updates)
+      4005        8.295        0.002  connection.py:252(recv)
+  10012/8028        7.929        0.001  connection.py:406(_recv)
+  10012/8028        7.910        0.001  {built-in method posix.read}
+  5006/4014        7.900        0.002  connection.py:446(_recv_bytes)
+         1        6.866        6.866  rz_pic_cpu.py:314(main)
+         1        6.845        6.845  pool.py:659(join)
+         6        6.714        1.119  threading.py:1096(join)
+
+  Simulation functions only (shows bottleneck shift):
+    ncalls   cumtime(s)   percall(s)  function
+  --------  -----------  -----------  ----------------------------------
+         1        6.866     6.866361  main
+      1002        1.940     0.001936  solvePotential
+    620778        1.115     0.000002  scatter
+      2233        0.657     0.000294  _maintain_pool
+    622111        0.095     0.000000  XtoL
+     18018        0.028     0.000002  gather
+      1002        0.011     0.000011  computeEF
+         4        0.000     0.000001  _check_not_importing_main
+
+────────────────────────────────────────────────────────────────────────
+  Grid NR=24  NZ=72  (total nodes = 1728)
+────────────────────────────────────────────────────────────────────────
+
+  [SERIAL]  top 8 by cumulative time
+  Total wall time: 36.21s
+    ncalls   cumtime(s)   percall(s)  function
+  --------  -----------  -----------  ----------------------------------
+         1       36.210       36.210  rz_pic.py:243(main)
+   7428524       11.210        0.000  rz_pic.py:33(gather)
+   3694922        6.481        0.000  rz_pic.py:44(scatter)
+      1002        3.815        0.004  rz_pic.py:82(solvePotential)
+   7392488        1.174        0.000  rz_pic.py:19(XtoL)
+  14893084        1.016        0.000  {built-in method math.trunc}
+   7409809        0.555        0.000  {built-in method math.sqrt}
+   1734912        0.084        0.000  rz_pic.py:29(R)
+
+  [PARALLEL]
+  Total wall time: 28.32s   (speedup: 1.28x)
+
+  Top 8 by cumtime (IPC wait dominates because workers
+  run in sub-processes invisible to cProfile):
+    ncalls   cumtime(s)   percall(s)  function
+  --------  -----------  -----------  ----------------------------------
+         6       56.303        9.384  threading.py:1096(join)
+         6       56.297        9.383  {method 'join' of '_thread._ThreadHandle' objects}
+      3112       31.401        0.010  pool.py:500(_wait_for_updates)
+      4005       30.616        0.008  connection.py:252(recv)
+  5007/4010       30.553        0.008  connection.py:446(_recv_bytes)
+         1       28.320       28.320  rz_pic_cpu.py:314(main)
+         1       28.285       28.285  pool.py:659(join)
+       3/1       28.149       28.149  threading.py:1029(_bootstrap)
+
+  Simulation functions only (shows bottleneck shift):
+    ncalls   cumtime(s)   percall(s)  function
+  --------  -----------  -----------  ----------------------------------
+         1       28.320    28.319767  main
+   3694769        6.888     0.000002  scatter
+      1002        3.746     0.003738  solvePotential
+      3112        3.243     0.001042  _maintain_pool
+   3696102        0.645     0.000000  XtoL
+     36036        0.055     0.000002  gather
+      1002        0.015     0.000015  computeEF
+         4        0.000     0.000001  _check_not_importing_main
+
+────────────────────────────────────────────────────────────────────────
+  Grid NR=36  NZ=108  (total nodes = 3888)
+────────────────────────────────────────────────────────────────────────
+
+  [SERIAL]  top 8 by cumulative time
+  Total wall time: 91.13s
+    ncalls   cumtime(s)   percall(s)  function
+  --------  -----------  -----------  ----------------------------------
+         1       91.127       91.127  rz_pic.py:243(main)
+  19362998       29.507        0.000  rz_pic.py:33(gather)
+   9654207       16.991        0.000  rz_pic.py:44(scatter)
+      1002        6.425        0.006  rz_pic.py:82(solvePotential)
+  19308944        3.020        0.000  rz_pic.py:19(XtoL)
+  38780050        2.651        0.000  {built-in method math.trunc}
+  19347879        1.460        0.000  {built-in method math.sqrt}
+   3903552        0.184        0.000  rz_pic.py:29(R)
+
+  [PARALLEL]
+  Total wall time: 67.93s   (speedup: 1.34x)
+
+  Top 8 by cumtime (IPC wait dominates because workers
+  run in sub-processes invisible to cProfile):
+    ncalls   cumtime(s)   percall(s)  function
+  --------  -----------  -----------  ----------------------------------
+      5942      119.175        0.020  connection.py:259(poll)
+      5942      118.504        0.020  connection.py:456(_poll)
+     10881       96.997        0.009  connection.py:1151(wait)
+     10881       86.856        0.008  selectors.py:385(select)
+     10881       76.069        0.007  {method 'poll' of 'select.poll' objects}
+      4939       70.556        0.014  pool.py:500(_wait_for_updates)
+         1       67.931       67.931  rz_pic_cpu.py:314(main)
+         1       67.873       67.873  pool.py:659(join)
+
+  Simulation functions only (shows bottleneck shift):
+    ncalls   cumtime(s)   percall(s)  function
+  --------  -----------  -----------  ----------------------------------
+         1       67.931    67.931035  main
+   9667512       18.141     0.000002  scatter
+      4939       10.984     0.002224  _maintain_pool
+      1002        6.416     0.006403  solvePotential
+   9667756        1.616     0.000000  XtoL
+     54054        0.080     0.000001  gather
+      1002        0.019     0.000019  computeEF
+         4        0.000     0.000001  _check_not_importing_main
+
+========================================================================
+  OVERALL TIMING SUMMARY
+========================================================================
+    NR    NZ   Serial(s)   Parallel(s)    Speedup
+  ----  ----  ----------  ------------  ---------
+    12    36        7.41          6.87      1.08x
+    24    72       36.21         28.32      1.28x
+    36   108       91.13         67.93      1.34x
+
+  NOTE: Parallel workers (push_chunk_shm) run in sub-processes.
+  cProfile cannot see inside them. IPC wait in 'connection.*'
+  reflects the main process blocking while workers push particles.
