@@ -2,7 +2,7 @@ import numpy
 import pylab as pl
 import math
 from random import (seed, random)
-from multiprocessing import Pool, shared_memory
+from multiprocessing import Pool, shared_memory, cpu_count
 
 
 def XtoL(pos):
@@ -19,27 +19,59 @@ def R(j):
     return j * dr
 
 
-def gather(data, lc):
-    i = math.trunc(lc[0])
-    j = math.trunc(lc[1])
-    di = lc[0] - i
-    dj = lc[1] - j
-    return (data[i][j] * (1 - di) * (1 - dj) +
-            data[i + 1][j] * di * (1 - dj) +
-            data[i][j + 1] * (1 - di) * dj +
-            data[i + 1][j + 1] * di * dj)
+def gather(data, lc0, lc1):
+    i = lc0.astype(int)
+    j = lc1.astype(int)
 
+    di = lc0 - i
+    dj = lc1 - j
 
-def scatter(data, lc, value):
-    i = int(numpy.trunc(lc[0]))
-    j = int(numpy.trunc(lc[1]))
-    di = lc[0] - i
-    dj = lc[1] - j
+    ip = i + 1
+    jp = j + 1
 
-    data[i][j] += (1 - di) * (1 - dj) * value
-    data[i + 1][j] += di * (1 - dj) * value
-    data[i][j + 1] += (1 - di) * dj * value
-    data[i + 1][j + 1] += di * dj * value
+    a = data[i, j]
+    b = data[ip, j]
+    c = data[i, jp]
+    d = data[ip, jp]
+
+    x0 = a + di * (b - a)
+    x1 = c + di * (d - c)
+
+    return x0 + dj * (x1 - x0)
+
+def gather_init(data, lc0, lc1):
+    a = data[0: -1, 0:-1]
+    b = data[1:, 0:-1]
+    c = data[0: -1, 1:]
+    d = data[1:, 1:]
+
+    di = lc0
+    dj = lc1
+
+    x0 = a + di * (b - a)
+    x1 = c + dj * (d - c)
+
+    return x0 + dj * (x1 - x0)
+
+def scatter(data, lc0, lc1, value):
+    i = int(lc0)
+    j = int(lc1)
+    di = lc0 - i
+    dj = lc1 - j
+
+    ip = i + 1
+    jp = j + 1
+
+    di1 = 1 - di
+    dj1 = 1 - dj
+
+    v1 = dj1 * value
+    v2 = dj * value
+
+    data[i, j] += di1 * v1
+    data[ip, j] += di * v1
+    data[i, jp] += di1 * v2
+    data[ip, jp] += di * v2
 
 
 # particle definition
@@ -69,7 +101,7 @@ def sampleIsotropicVel(vth):
 
 # ---------------------------------------------------------------------------
 # Number of CPU cores used for the parallel particle push
-N_CORES = 4
+N_CORES = cpu_count()
 
 
 def push_chunk_shm(args):
@@ -84,8 +116,8 @@ def push_chunk_shm(args):
     for idx in range(len(out)):
         pz, pr, pth, vz, vr, vth = out[idx]
 
-        i  = math.trunc(pz / dz)
-        j  = math.trunc(pr / dr)
+        i  = int(pz / dz)
+        j  = int(pr / dr)
         di = pz / dz - i
         dj = pr / dr - j
 
@@ -112,99 +144,59 @@ def push_chunk_shm(args):
     return out
 
 
-def push_chunk(args):
-    chunk, efz, efr, qm, dt, dz, dr = args
-    results = []
-    for pos, vel in chunk:
-        # logical coordinates (XtoL inline)
-        lc = [pos[0] / dz, pos[1] / dr]
-        i, j   = int(lc[0]), int(lc[1])
-        di, dj = lc[0] - i, lc[1] - j
-
-        # bilinear gather of electric field
-        ez = (efz[i][j]     * (1-di)*(1-dj) + efz[i+1][j]     * di*(1-dj) +
-              efz[i][j+1]   * (1-di)*dj     + efz[i+1][j+1]   * di*dj)
-        er = (efr[i][j]     * (1-di)*(1-dj) + efr[i+1][j]     * di*(1-dj) +
-              efr[i][j+1]   * (1-di)*dj     + efr[i+1][j+1]   * di*dj)
-
-        # push velocity then position
-        vel[0] += qm * ez * dt;  pos[0] += vel[0] * dt
-        vel[1] += qm * er * dt;  pos[1] += vel[1] * dt
-        vel[2] += 0.0;           pos[2] += vel[2] * dt
-
-        # rotate back to ZR plane
-        r = math.sqrt(pos[1]**2 + pos[2]**2)
-        if r == 0.0:
-            results.append((pos, vel))
-            continue
-        sin_t = pos[2] / r
-        cos_t = math.sqrt(max(0.0, 1.0 - sin_t * sin_t))
-        pos[1] = r
-        pos[2] = 0.0
-        u2 = cos_t * vel[1] - sin_t * vel[2]
-        v2 = sin_t * vel[1] + cos_t * vel[2]
-        vel[1] = u2
-        vel[2] = v2
-        results.append((pos, vel))
-    return results
-
-
 # simple Jacobian solver, does not do any convergence checking
 def solvePotential(phi, max_it=100):
-    # make copy of dirichlet nodes
-    P = numpy.copy(phi)
-
-    g = numpy.zeros_like(phi)
     dz2 = dz * dz
     dr2 = dr * dr
+    dr_x2 = 2 * dr
+    denom = 2.0 / dr2 + 2.0 / dz2
 
-    rho_e = numpy.zeros_like(phi)
+    g = numpy.empty_like(phi)
+    b = numpy.empty_like(phi)
+    mask = cell_type <= 0
+
+    # compute electron term
+    rho_e = QE * n0 * numpy.exp((phi[mask] - phi0) / kTe)
+    b[mask] = (rho_i[mask] - rho_e) / EPS0
 
     # set radia
-    r = numpy.zeros_like(phi)
-    for i in range(nz):
-        for j in range(nr):
-            r[i][j] = R(j)
+    row = numpy.array([dr_x2 * R(j) for j in range(nr)])
+    r = numpy.broadcast_to(row, (nz, nr))
+
+    g_ij = g[1:-1, 1:-1]
+    b_ij = b[1:-1, 1:-1]
+    r_ij = r[1:-1, 1:-1]
+    phi_ijp = phi[1:-1, 2:]
+    phi_ijm = phi[1:-1, :-2]
+    phi_ipj = phi[2:, 1:-1]
+    phi_imj = phi[:-2, 1:-1]
+
+    g_i0 = g[:, 0]
+    g_i1 = g[:, 1]
+    g_im1 = g[:, -1]
+    g_im2 = g[:, -2]
+    g_0j = g[0]
+    g_1j = g[1]
+    g_m1j = g[-1]
+    g_m2j = g[-2]
 
     for it in range(max_it):
-        # compute RHS
-        # rho_e = QE*n0*numpy.exp(numpy.subtract(phi,phi0)/kTe)
-
-        # for i in range(1,nz-1):
-        #    for j in range(1,nr-1):
-
-        #        if (cell_type[i,j]>0):
-        #            continue
-
-        #       rho_e=QE*n0*math.exp((phi[i,j]-phi0)/kTe)
-        #        b = (rho_i[i,j]-rho_e)/EPS0;
-        #        g[i,j] = (b +
-        #                 (phi[i,j-1]+phi[i,j+1])/dr2 +
-        #                 (phi[i,j-1]-phi[i,j+1])/(2*dr*r[i,j]) +
-        #                 (phi[i-1,j] + phi[i+1,j])/dz2) / (2/dr2 + 2/dz2)
-
-        #        phi[i,j]=g[i,j]
-
-        # compute electron term
-        rho_e = QE * n0 * numpy.exp(numpy.subtract(P, phi0) / kTe)
-        b = numpy.where(cell_type <= 0, (rho_i - rho_e) / EPS0, 0)
-
         # regular form inside
-        g[1:-1, 1:-1] = (b[1:-1, 1:-1] +
-                         (phi[1:-1, 2:] + phi[1:-1, :-2]) / dr2 +
-                         (phi[1:-1, 0:-2] - phi[1:-1, 2:]) / (2 * dr * r[1:-1, 1:-1]) +
-                         (phi[2:, 1:-1] + phi[:-2, 1:-1]) / dz2) / (2 / dr2 + 2 / dz2)
+        g_ij[...] = (
+                            b_ij +
+                            (phi_ijm + phi_ijp) / dr2 +
+                            (phi_ijm - phi_ijp) / r_ij +
+                            (phi_ipj + phi_imj) / dz2
+                    ) / denom
 
         # neumann boundaries
-        g[0] = g[1]  # left
-        g[-1] = g[-2]  # right
-        g[:, -1] = g[:, -2]  # top
-        g[:, 0] = g[:, 1]
+        g_i0[...] = g_i1  # left
+        g_im1[...] = g_im2  # right
+        g_0j[...] = g_1j  # top
+        g_m1j[...] = g_m2j  # bottom
 
         # dirichlet nodes
-        phi = numpy.where(cell_type > 0, P, g)
-
-    return phi
+        phi[mask] = g[mask]
 
 
 # computes electric field
@@ -329,15 +321,15 @@ def main():
 
             # inner tube
             if ((i == 0 and pos[1] < tube1_radius) or
-                    (pos[0] <= tube1_length and pos[1] >= tube1_radius and pos[1] < tube1_radius + 0.5 * dr) or
-                    (pos[0] >= tube1_length and pos[0] < tube1_length + 0.5 * dz and
-                     pos[1] >= tube1_aperture_rad and pos[1] < tube1_radius)):
+                    (pos[0] <= tube1_length and tube1_radius <= pos[1] < tube1_radius + 0.5 * dr) or
+                    (tube1_length <= pos[0] < tube1_length + 0.5 * dz and
+                     tube1_aperture_rad <= pos[1] < tube1_radius)):
                 cell_type[i][j] = 1
                 phi[i][j] = phi0
 
-            if ((pos[0] <= tube2_length and pos[1] >= tube2_radius and pos[1] < tube2_radius + 0.5 * dr) or
-                    (pos[0] >= tube2_length and pos[0] <= tube2_length + 1.5 * dz and
-                     pos[1] >= tube2_aperture_rad and pos[1] <= tube2_radius)):
+            if ((pos[0] <= tube2_length and tube2_radius <= pos[1] < tube2_radius + 0.5 * dr) or
+                    (tube2_length <= pos[0] <= tube2_length + 1.5 * dz and
+                     tube2_aperture_rad <= pos[1] <= tube2_radius)):
                 cell_type[i][j] = 2
                 phi[i][j] = phi1
 
@@ -371,7 +363,7 @@ def main():
     if draw_plot: sub = (pl.subplot(211), pl.subplot(212))
 
     # solve potential
-    phi = solvePotential(phi, 1000)
+    solvePotential(phi, 1000)
     computeEF(phi, efz, efr)
 
     # Allocate shared memory for field grids once — workers attach zero-copy
@@ -389,7 +381,9 @@ def main():
     # Pool created once outside the loop
     
     pool = Pool(N_CORES)
-
+    lc0 = numpy.array(1.5)
+    lc1 = numpy.arange(0, tube_j_max) + 0.5
+    cell_volume = gather(node_volume, lc0, lc1)
     # ----------- MAIN LOOP --------------------------------------------
     for ts in range(0, 1000 + 1):
 
@@ -409,13 +403,13 @@ def main():
                 if cell_type[i][j] > 0: continue
 
                 # interpolate node volume to cell center to get cell volume
-                cell_volume = gather(node_volume, (i + 0.5, j + 0.5))
+                #cell_volume = gather(node_volume, i + 0.5, j + 0.5)
 
                 # floating point production rate
-                mpf_new = dni * cell_volume / spwt + mpf_rem[i][j]
+                mpf_new = dni * cell_volume[j] / spwt + mpf_rem[i][j]
 
                 # truncate down, adding randomness
-                mp_new = int(math.trunc(mpf_new + random()))
+                mp_new = int(mpf_new + random())
 
                 # save fraction part
                 mpf_rem[i][j] = mpf_new - mp_new  # new fractional reminder
@@ -455,9 +449,9 @@ def main():
         while p < np:
 
             part = particles[p]
-            lc = XtoL(part.pos)
-            i = int(numpy.trunc(lc[0]))
-            j = int(numpy.trunc(lc[1]))
+            lc0, lc1 = XtoL(part.pos)
+            i = int(lc0)
+            j = int(lc1)
 
             #
             if i < 0 or i >= nz - 1 or j >= nr - 1 or cell_type[i][j] > 0:
@@ -466,7 +460,7 @@ def main():
                 np -= 1
                 continue
 
-            scatter(den, lc, spwt)
+            scatter(den, lc0, lc1, spwt)
             p += 1
 
         # resize particle array
@@ -477,7 +471,7 @@ def main():
         rho_i = charge * den
 
         # update potential
-        phi = solvePotential(phi)
+        solvePotential(phi)
 
         # compute electric field
         computeEF(phi, efz, efr)

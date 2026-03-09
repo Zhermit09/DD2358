@@ -8,7 +8,7 @@ sys.path.insert(0, "Project")
 sys.path.insert(0, "Project/Cpu")
 
 import rz_pic as serial_mod
-import rz_pic_cpu as parallel_mod
+import rz_pic_CPU as parallel_mod
 
 GRID_SIZES = [12, 24, 36]
 TOP_N = 8 
