@@ -1,12 +1,3 @@
-"""
-benchmark_grid.py — serial vs parallel simulation at increasing grid sizes.
-
-Grid nr controls domain size: nz = nr*3, so nr=24 is 4x more cells than nr=12.
-Larger grids also produce more particles, increasing the parallel push workload.
-
-Run: python Project/benchmark_grid.py
-"""
-
 import sys
 import time
 

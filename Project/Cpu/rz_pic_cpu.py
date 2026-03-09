@@ -113,13 +113,6 @@ def push_chunk_shm(args):
 
 
 def push_chunk(args):
-    """Push a chunk of particles in parallel.
-
-    Each worker receives a read-only copy of the field grids (efz, efr)
-    and its own slice of (pos, vel) list pairs so there are no shared
-    write conflicts.  Returns a list of updated (pos, vel) pairs in the
-    same order as the input chunk.
-    """
     chunk, efz, efr, qm, dt, dz, dr = args
     results = []
     for pos, vel in chunk:
