@@ -101,8 +101,9 @@ def benchmark(modules, nrss, args, names, n=10, save=True):
 import rz_pic
 import C.rz_pic_C as rz_pic_C
 import GPU.rz_pic_GPU as rz_pic_GPU
+import CPU.rz_pic_CPU as rz_pic_CPU
 
 nrs = [8, 10, 12, 14, 18, 22, 26, 30]
-for nr in nrs: validate(rz_pic, rz_pic_C, nr)
-data = benchmark([rz_pic, rz_pic_C], [nrs, nrs], [(), ()], ["Python", "Cython"])
+for nr in nrs: validate(rz_pic, rz_pic_CPU, nr)
+data = benchmark([rz_pic, rz_pic_CPU], [nrs, nrs], [(), ()], ["Python", "Multiprocessing"])
 plot(data)
