@@ -429,11 +429,7 @@ def main():
         # some arbitrary min value
         max_zvel = 0
 
-        # --- parallel particle push via shared_memory + numpy ---
-        # Convert particles to a contiguous (N, 6) numpy array, split into
-        # N_CORES chunks, and dispatch to workers that read efz/efr from
-        # shared memory (zero-copy).  One memcpy per chunk replaces per-
-        # particle pickling, giving ~3x speedup at simulation scale.
+        # parallel particle push via shared_memory + numpy 
         if particles:
             particles_arr = numpy.array(
                 [[p.pos[0], p.pos[1], p.pos[2], p.vel[0], p.vel[1], p.vel[2]]
