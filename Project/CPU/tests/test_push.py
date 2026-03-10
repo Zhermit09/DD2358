@@ -5,7 +5,7 @@ import numpy
 from multiprocessing import Pool, shared_memory as shm_module
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from rz_pic_cpu import push_chunk_shm, N_CORES
+from rz_pic_CPU import push_chunk_shm, N_CORES
 
 
 DZ = DR = 1e-3

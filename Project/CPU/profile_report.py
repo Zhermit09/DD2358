@@ -1,11 +1,13 @@
 import sys
+import os
 import cProfile
 import pstats
 import io
 import time
 
-sys.path.insert(0, "Project")
-sys.path.insert(0, "Project/Cpu")
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(_HERE, ".."))  
+sys.path.insert(0, _HERE)                      
 
 import rz_pic as serial_mod
 import rz_pic_CPU as parallel_mod
@@ -111,5 +113,31 @@ def run():
     print("  reflects the main process blocking while workers push particles.")
 
 
+class _Tee:
+    """Write to both the real stdout and a file at the same time."""
+    def __init__(self, filepath):
+        self._file = open(filepath, "w", encoding="utf-8")
+        self._stdout = sys.stdout
+
+    def write(self, data):
+        self._stdout.write(data)
+        self._file.write(data)
+
+    def flush(self):
+        self._stdout.flush()
+        self._file.flush()
+
+    def close(self):
+        self._file.close()
+
+
 if __name__ == "__main__":
-    run()
+    _out_path = os.path.join(_HERE, "profile_output.txt")
+    _tee = _Tee(_out_path)
+    sys.stdout = _tee
+    try:
+        run()
+    finally:
+        sys.stdout = _tee._stdout
+        _tee.close()
+    print(f"\nReport saved to: {_out_path}")
