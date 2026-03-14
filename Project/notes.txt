@@ -1,6 +1,0 @@
-download the file, make minimal library fixes due to Python 2, move script into main function for profiling, create global variables reset function to allow for multiple runs
-
-the most expensive functions are main, solvePotential, gather, scatter
-main has no definitive bottleneck, alot of small calls that accumulate time
-
-cpython, typeset and memview, used asarray() to fix some scalar matrix operations, lists to numpy arrays
