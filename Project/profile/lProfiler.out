@@ -1,0 +1,194 @@
+Wrote profile results to 'temp/rz-pic.py.lprof'
+Timer unit: 1e-06 s
+
+Total time: 19.7248 s
+File: rz-pic.py
+Function: main at line 209
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   209                                           @profile
+   210                                           def main():
+   211                                               global nz, nr, dz, dr, dt
+   212                                               global QE, AMU, EPS0
+   213                                               global charge, m, qm, spwt
+   214                                               global n0, phi0, phi1, kTe
+   215                                               global phi, efz, efr, rho_i, den
+   216                                           
+   217                                               # ---------- INITIALIZATION ----------------------------------------
+   218                                           
+   219                                               #pl.close('all')
+   220         1         26.3     26.3      0.0      seed()
+   221                                           
+   222        36         10.1      0.3      0.0      for i in range(0, nz):
+   223       455        128.1      0.3      0.0          for j in range(0, nr):
+   224       420        436.8      1.0      0.0              pos = Pos([i, j])  # node position
+   225                                           
+   226                                                       # inner tube
+   227       420        111.5      0.3      0.0              if ((i == 0 and pos[1] < tube1_radius) or
+   228       414        117.8      0.3      0.0                      (pos[0] <= tube1_length and pos[1] >= tube1_radius and pos[1] < tube1_radius + 0.5 * dr) or
+   229       403        116.4      0.3      0.0                      (pos[0] >= tube1_length and pos[0] < tube1_length + 0.5 * dz and
+   230        11          3.4      0.3      0.0                       pos[1] >= tube1_aperture_rad and pos[1] < tube1_radius)):
+   231        19         13.6      0.7      0.0                  cell_type[i][j] = 1
+   232        19          9.6      0.5      0.0                  phi[i][j] = phi0
+   233                                           
+   234       420        120.8      0.3      0.0              if ((pos[0] <= tube2_length and pos[1] >= tube2_radius and pos[1] < tube2_radius + 0.5 * dr) or
+   235       407        113.9      0.3      0.0                      (pos[0] >= tube2_length and pos[0] <= tube2_length + 1.5 * dz and
+   236        23          6.6      0.3      0.0                       pos[1] >= tube2_aperture_rad and pos[1] <= tube2_radius)):
+   237        22         10.0      0.5      0.0                  cell_type[i][j] = 2
+   238        22         10.4      0.5      0.0                  phi[i][j] = phi1
+   239                                           
+   240                                               # ----------- COMPUTE NODE VOLUMES ------------------------
+   241         1          3.2      3.2      0.0      node_volume = numpy.zeros([nz, nr])
+   242        36          9.8      0.3      0.0      for i in range(0, nz):
+   243       455        132.7      0.3      0.0          for j in range(0, nr):
+   244       420        142.4      0.3      0.0              j_min = j - 0.5
+   245       420        132.6      0.3      0.0              j_max = j + 0.5
+   246       420        119.5      0.3      0.0              if j_min < 0: j_min = 0
+   247       420        134.8      0.3      0.0              if j_max > nr - 1: j_max = nr - 1
+   248       420        135.4      0.3      0.0              a = 0.5 if (i == 0 or i == nz - 1) else 1.0
+   249                                                       # note, this is r*dr for non-boundary nodes
+   250       420        642.3      1.5      0.0              node_volume[i][j] = a * dz * (R(j_max) ** 2 - R(j_min) ** 2)
+   251                                           
+   252                                                   # create an array of particles
+   253         1          0.4      0.4      0.0      particles = []
+   254                                           
+   255                                               # counter for fractional particles
+   256         1          3.1      3.1      0.0      mpf_rem = numpy.zeros([nz, nr])
+   257         1          2.5      2.5      0.0      rho_i = numpy.zeros([nz, nr])
+   258                                           
+   259         1          1.9      1.9      0.0      lambda_d = math.sqrt(EPS0 * kTe / (n0 * QE))
+   260                                               #print("Debye length is %.4g, which is %.2g*dz" % (lambda_d, lambda_d / dz))
+   261                                               #print("Expected ion speed is %.2f m/s" % math.sqrt(2 * phi0 * qm))
+   262                                           
+   263                                               # positions for plotting
+   264         1         89.1     89.1      0.0      pos_r = numpy.linspace(0, (nr - 1) * dr, nr)
+   265         1         27.4     27.4      0.0      pos_z = numpy.linspace(0, (nz - 1) * dz, nz)
+   266                                               #fig1 = pl.figure(num=None, figsize=(10, 10), dpi=80, facecolor='w', edgecolor='k')
+   267                                               #sub = (pl.subplot(211), pl.subplot(212))
+   268                                           
+   269                                               # solve potential
+   270         1      29007.2  29007.2      0.1      phi = solvePotential(phi, 1000)
+   271         1         34.5     34.5      0.0      computeEF(phi, efz, efr)
+   272                                           
+   273                                               # ----------- MAIN LOOP --------------------------------------------
+   274      1002        463.6      0.5      0.0      for ts in range(0, 1000 + 1):
+   275                                           
+   276      1001       2405.9      2.4      0.0          den = numpy.zeros([nz, nr])
+   277                                           
+   278                                                   # compute production rate
+   279      1001        365.3      0.4      0.0          na = 1e15
+   280      1001        270.7      0.3      0.0          ne = 1e12
+   281      1001        305.9      0.3      0.0          k = 2e-10  # not a physical value
+   282      1001        440.2      0.4      0.0          dni = k * ne * na * dt
+   283                                           
+   284                                                   # inject particles
+   285      4004       1600.2      0.4      0.0          for i in range(1, tube_i_max):
+   286     21021       6386.5      0.3      0.0              for j in range(0, tube_j_max):
+   287                                           
+   288                                                           # skip over solid cells
+   289     18018       9822.3      0.5      0.0                  if cell_type[i][j] > 0: continue
+   290                                           
+   291                                                           # interpolate node volume to cell center to get cell volume
+   292     18018      82548.2      4.6      0.4                  cell_volume = gather(node_volume, (i + 0.5, j + 0.5))
+   293                                           
+   294                                                           # floating point production rate
+   295     18018      12227.4      0.7      0.1                  mpf_new = dni * cell_volume / spwt + mpf_rem[i][j]
+   296                                           
+   297                                                           # truncate down, adding randomness
+   298     18018      10825.5      0.6      0.1                  mp_new = int(math.trunc(mpf_new + random()))
+   299                                           
+   300                                                           # save fraction part
+   301     18018       9604.3      0.5      0.0                  mpf_rem[i][j] = mpf_new - mp_new  # new fractional reminder
+   302                                           
+   303                                                           # generate this many particles
+   304     20190       8178.2      0.4      0.0                  for p in range(mp_new):
+   305      2172       3643.4      1.7      0.0                      pos = Pos([i + random(), j + random()])
+   306      2172      13113.2      6.0      0.1                      vel = sampleIsotropicVel(300)
+   307      2172       4186.6      1.9      0.0                      particles.append(Particle(pos, vel))
+   308                                           
+   309                                                   # some arbitrary min value
+   310      1001        344.8      0.3      0.0          max_zvel = 0
+   311                                           
+   312                                                   # push particles
+   313    629151     188948.3      0.3      1.0          for part in particles:
+   314                                                       # gather electric field
+   315    628150     722213.4      1.1      3.7              lc = XtoL(part.pos)
+   316    628150    5449674.2      8.7     27.6              part_ef = [gather(efz, lc), gather(efr, lc), 0]
+   317   2512600     804167.6      0.3      4.1              for dim in range(3):
+   318   1884450     874688.4      0.5      4.4                  part.vel[dim] += qm * part_ef[dim] * dt
+   319   1884450     796702.0      0.4      4.0                  part.pos[dim] += part.vel[dim] * dt
+   320                                           
+   321                                                       # get new maximum velocity, for screen output
+   322    628150     199328.1      0.3      1.0              if part.vel[0] > max_zvel: max_zvel = part.vel[0]
+   323                                           
+   324                                                       # rotate particle back to ZR plane
+   325    628150     311818.2      0.5      1.6              r = math.sqrt(part.pos[1] * part.pos[1] + part.pos[2] * part.pos[2])
+   326    628150     223602.1      0.4      1.1              sin_theta_r = part.pos[2] / r
+   327    628150     185564.7      0.3      0.9              part.pos[1] = r
+   328    628150     188409.0      0.3      1.0              part.pos[2] = 0
+   329                                           
+   330                                                       # rotate velocity
+   331    628150     279938.5      0.4      1.4              cos_theta_r = math.sqrt(1 - sin_theta_r * sin_theta_r)
+   332    628150     280716.1      0.4      1.4              u2 = cos_theta_r * part.vel[1] - sin_theta_r * part.vel[2]
+   333    628150     273086.3      0.4      1.4              v2 = sin_theta_r * part.vel[1] + cos_theta_r * part.vel[2]
+   334    628150     184418.3      0.3      0.9              part.vel[1] = u2
+   335    628150     193434.7      0.3      1.0              part.vel[2] = v2
+   336                                           
+   337                                                   # compute density
+   338      1001        295.0      0.3      0.0          p = 0
+   339      1001        628.7      0.6      0.0          np = len(particles)
+   340    629151     178342.7      0.3      0.9          while p < np:
+   341                                           
+   342    628150     180067.8      0.3      0.9              part = particles[p]
+   343    628150     695424.0      1.1      3.5              lc = XtoL(part.pos)
+   344    628150     351889.1      0.6      1.8              i = int(numpy.trunc(lc[0]))
+   345    628150     316027.3      0.5      1.6              j = int(numpy.trunc(lc[1]))
+   346                                           
+   347                                                       #
+   348    628150     349103.6      0.6      1.8              if i < 0 or i >= nz - 1 or j >= nr - 1 or cell_type[i][j] > 0:
+   349                                                           # replace current data with the last entry
+   350      1335        556.7      0.4      0.0                  particles[p] = particles[np - 1]
+   351      1335        467.7      0.4      0.0                  np -= 1
+   352      1335        372.0      0.3      0.0                  continue
+   353                                           
+   354    626815    2759300.3      4.4     14.0              scatter(den, lc, spwt)
+   355    626815     197444.3      0.3      1.0              p += 1
+   356                                           
+   357                                                   # resize particle array
+   358      1001       2610.8      2.6      0.0          particles = particles[0:np]
+   359                                           
+   360                                                   # divide by node volume
+   361      1001       3979.6      4.0      0.0          den /= node_volume
+   362      1001       4203.2      4.2      0.0          rho_i = charge * den
+   363                                           
+   364                                                   # update potential
+   365      1001    3304930.4   3301.6     16.8          phi = solvePotential(phi)
+   366                                           
+   367                                                   # compute electric field
+   368      1001      16713.4     16.7      0.1          computeEF(phi, efz, efr)
+   369                                           
+   370                                                   # recompute reference density
+   371      1001       6535.3      6.5      0.0          n0 = den.max()
+   372                                           
+   373      1001        609.3      0.6      0.0          if ts % 10 == 0:
+   374                                                       #print("ts: %d, np: %d, phi range: %.2g:%.2g, max_den: %.3g, max_zvel: %.f" % (ts, len(particles), phi.min(),
+   375                                                       #                                                                              phi.max(), n0, max_zvel))
+   376                                           
+   377                                                       # sub = pl.subplot(111,aspect='equal')
+   378                                           
+   379                                                       # sub[0].hold(False)
+   380       101         41.0      0.4      0.0              """plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=True)
+   381                                                       plot(sub[1], phi, pos_z, pos_r)
+   382                                                       pl.draw()
+   383                                                       pl.pause(1e-4)  # allow for repaint"""
+   384                                           
+   385                                               # ----------- END OF MAIN LOOP ------------------------
+   386         1          3.8      3.8      0.0      """plot(sub[0], numpy.log10(numpy.where(den <= 1e4, 1e4, den)), pos_z, pos_r, scatter=True)
+   387                                               plot(sub[1], phi, pos_z, pos_r)
+   388                                               # Q = pl.quiver(pos_z, pos_r, numpy.transpose(efz), numpy.transpose(efr),units='xy')
+   389                                               pl.draw()
+   390                                           
+   391                                               # this will block execution until figure is closed
+   392                                               pl.show()"""
+
